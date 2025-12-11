@@ -1,0 +1,12 @@
+services:
+  portfolio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: portfolio-app
+    container_name: portfolio-container
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
