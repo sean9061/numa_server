@@ -1,10 +1,11 @@
-import { Github, Twitter, Instagram, Linkedin, Mail } from "lucide-react";
+import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car } from "lucide-react";
 
 export const siteConfig = {
   name: "Sean Fisher",
-  title: "地球人",
-  description: "Building digital experiences with a focus on motion and minimalism.",
-  location: "Tokyo, Japan",
+  nameJa: "フィッシャー 翔音",
+  title: "ホモサピエンス",
+  affiliation: "Tokyo University of Technology",
+  location: "地球",
   avatar: "/images/icon.jpg",
   socials: [
     {
@@ -21,6 +22,33 @@ export const siteConfig = {
       name: "Instagram",
       url: "https://instagram.com",
       icon: Instagram,
+    },
+  ],
+  mainActivities: [
+    {
+      name: "XR開発",
+      description: "Immersive experiences using Unity & WebXR.",
+      icon: Box,
+    },
+    {
+      name: "ロケットのペイロード開発",
+      description: "Mission critical systems for aerospace.",
+      icon: Rocket,
+    },
+    {
+      name: "土壌センサーのIoT開発",
+      description: "Smart agriculture solutions.",
+      icon: Sprout,
+    },
+    {
+      name: "マイクラ鯖",
+      description: "Server administration & plugins.",
+      icon: Server,
+    },
+    {
+      name: "マイコンカーラリー",
+      description: "Embedded systems & autonomous driving.",
+      icon: Car,
     },
   ],
   techStack: [
@@ -55,8 +83,7 @@ export const siteConfig = {
     },
   ],
   interests: {
-    activities: ["Photography", "Hiking", "Coffee Brewing"],
-    hobbies: ["Synthesizers", "Sci-Fi Novels", "Mechanical Keyboards"],
+    hobbies: ["スキー", "多肉植物", "3Dプリンター", "カメラ", "マイクラ"],
     music: {
       title: "Midnight City",
       artist: "M83",
