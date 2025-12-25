@@ -34,3 +34,20 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Docker Development
+
+To run this application using Docker with the development configuration (bypassing the proxy):
+
+```bash
+# Start in background
+docker compose up -d
+
+# Stop
+docker compose down
+```
+
+The app will be available at [http://localhost:3000](http://localhost:3000).
+
+### About `compose.override.yaml`
+This file is automatically loaded by Docker Compose to override the production settings. It explicitly exposes port 3000 to the host, which is disabled in the main `compose.yaml` (where it relies on the proxy network).
