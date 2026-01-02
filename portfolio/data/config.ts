@@ -1,4 +1,4 @@
-import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car } from "lucide-react";
+import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe } from "lucide-react";
 
 export const siteConfig = {
   name: "Sean Fisher",
@@ -10,17 +10,17 @@ export const siteConfig = {
   socials: [
     {
       name: "GitHub",
-      url: "https://github.com",
+      url: "https://github.com/sean9061",
       icon: Github,
     },
     {
       name: "Twitter",
-      url: "https://twitter.com",
+      url: "https://twitter.com/sean_9061",
       icon: Twitter,
     },
     {
       name: "Instagram",
-      url: "https://instagram.com",
+      url: "https://instagram.com/sean_9061.p",
       icon: Instagram,
     },
   ],
@@ -83,11 +83,12 @@ export const siteConfig = {
     },
   ],
   interests: {
-    hobbies: ["スキー", "多肉植物", "3Dプリンター", "カメラ", "マイクラ"],
-    music: {
-      title: "Midnight City",
-      artist: "M83",
-      cover: "/images/album.jpg",
-    },
+    hobbies: [
+      { name: "スキー", icon: Snowflake },
+      { name: "多肉植物", icon: Sprout },
+      { name: "3Dプリンター", icon: Printer },
+      { name: "カメラ", icon: Camera },
+      { name: "マイクラ", icon: Pickaxe },
+    ],
   },
 };
