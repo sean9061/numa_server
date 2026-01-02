@@ -90,10 +90,5 @@ export const siteConfig = {
       { name: "カメラ", icon: Camera },
       { name: "マイクラ", icon: Pickaxe },
     ],
-    music: {
-      title: "Midnight City",
-      artist: "M83",
-      cover: "/images/album.jpg",
-    },
   },
 };
