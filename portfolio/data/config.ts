@@ -10,17 +10,17 @@ export const siteConfig = {
   socials: [
     {
       name: "GitHub",
-      url: "https://github.com",
+      url: "https://github.com/sean9061",
       icon: Github,
     },
     {
       name: "Twitter",
-      url: "https://twitter.com",
+      url: "https://twitter.com/sean_9061",
       icon: Twitter,
     },
     {
       name: "Instagram",
-      url: "https://instagram.com",
+      url: "https://instagram.com/sean_9061.p",
       icon: Instagram,
     },
   ],
