@@ -58,6 +58,7 @@ export const siteConfig = {
     { name: "Tailwind CSS", icon: "tailwindcss" },
     { name: "Framer Motion", icon: "framermotion" },
     { name: "Docker", icon: "docker" },
+    { name: "Git", icon: "git" },
   ],
   projects: [
     {
