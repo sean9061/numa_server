@@ -52,13 +52,16 @@ export const siteConfig = {
     },
   ],
   techStack: [
-    { name: "React", icon: "react" },
-    { name: "Next.js", icon: "nextjs" },
-    { name: "TypeScript", icon: "typescript" },
-    { name: "Tailwind CSS", icon: "tailwindcss" },
-    { name: "Framer Motion", icon: "framermotion" },
-    { name: "Docker", icon: "docker" },
-    { name: "Git", icon: "git" },
+    { name: "Go", icon: "go", url: "https://go.dev" },
+    { name: "TypeScript", icon: "typescript", url: "https://www.typescriptlang.org" },
+    { name: "Arduino", icon: "arduino", url: "https://www.arduino.cc" },
+    { name: "Unity", icon: "unity", url: "https://unity.com" },
+    { name: "React", icon: "react", url: "https://react.dev" },
+    { name: "Next.js", icon: "nextjs", url: "https://nextjs.org" },
+    { name: "Docker", icon: "docker", url: "https://www.docker.com" },
+    { name: "PostgreSQL", icon: "postgresql", url: "https://www.postgresql.org" },
+    { name: "Fusion 360", icon: "fusion", url: "https://www.autodesk.com/products/fusion-360/overview" },
+    { name: "Git", icon: "git", url: "https://git-scm.com" },
   ],
   projects: [
     {
