@@ -19,12 +19,13 @@ export default function Home() {
         {/* Activities: Right (2x2) - Spans 2 rows */}
         <ActivitiesCard className="col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2 aspect-auto md:aspect-square h-full" />
 
-        {/* Tech Stack: Row 2 Left (2x1) */}
-        <TechStackCard className="col-span-1 md:col-span-2 lg:col-span-2 aspect-auto md:aspect-[2/1]" />
+        {/* Tech Stack: Left (1x1) */}
+        <TechStackCard className="col-span-1 md:col-span-1 aspect-square" />
+
+        {/* Social: Middle (1x1) */}
+        <SocialLinksCard className="col-span-1 aspect-square" />
 
         {/* Row 3 */}
-        {/* Social: Row 3 Left (1x1) */}
-        <SocialLinksCard className="col-span-1 aspect-square" />
 
         {/* Interests: Row 3 Middle (2x1) */}
         <InterestsCard className="col-span-1 md:col-span-2 lg:col-span-2 aspect-auto md:aspect-[2/1]" />
