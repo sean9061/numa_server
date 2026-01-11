@@ -12,28 +12,39 @@ interface ProjectCardProps {
         image: string;
         link: string;
         year: string;
+        video?: string;
     };
     className?: string;
     delay?: number;
 }
 
+function getYouTubeId(url: string) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+
 export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps) {
+    const videoId = project.video ? getYouTubeId(project.video) : null;
+
     return (
         <BentoCard className={className} delay={delay}>
             <Link href={project.link} target="_blank" className="group flex h-full flex-col">
                 <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800">
-                    {/* Placeholder for project image */}
-                    <div className="absolute inset-0 flex items-center justify-center text-neutral-400">
-                        <span className="text-sm">Image Preview</span>
-                    </div>
-                    {/* Uncomment when real images are available
-          <Image
-            src={project.image}
-            alt={project.title}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-          */}
+                    {videoId ? (
+                        <iframe
+                            className="absolute inset-0 h-full w-full pointer-events-none scale-[1.35]"
+                            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&playsinline=1`}
+                            allow="autoplay; encrypted-media"
+                        />
+                    ) : (
+                        <Image
+                            src={project.image}
+                            alt={project.title}
+                            fill
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                    )}
                 </div>
 
                 <div className="flex items-start justify-between">

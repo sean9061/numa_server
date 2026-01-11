@@ -65,25 +65,12 @@ export const siteConfig = {
   ],
   projects: [
     {
-      title: "Project Alpha",
-      description: "A revolutionary way to manage tasks.",
-      image: "/images/project1.jpg",
-      link: "https://example.com",
-      year: "2024",
-    },
-    {
-      title: "Beta App",
-      description: "Social media for cats.",
-      image: "/images/project2.jpg",
-      link: "https://example.com",
-      year: "2023",
-    },
-    {
-      title: "Gamma Tools",
-      description: "Developer utilities for the modern web.",
-      image: "/images/project3.jpg",
-      link: "https://example.com",
-      year: "2023",
+      title: "Assistant May",
+      description: "Web×IoT Makers Challenge PLUS 2022 Shinshu Grand Prix Winner. An IoT-enabled life support assistant.",
+      image: "/images/assistant-may.jpg",
+      link: "https://webiotmakers.github.io/2022/winners/",
+      year: "2022",
+      video: "https://www.youtube.com/watch?v=H77eqvaX4Yg",
     },
   ],
   interests: {
