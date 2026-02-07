@@ -2,3 +2,4 @@
 data/
 letsencrypt/
 mysql/
+.env
