@@ -65,11 +65,20 @@ export const siteConfig = {
   ],
   projects: [
     {
+      title: "マイコンカー「Lami_01」",
+      description: "マイコンカーラリー アドバンスクラスの車体",
+      image: "/images/lami_01.png",
+      link: "",
+      year: "2026",
+      video: "",
+      gltf: "/models/Lami_01.glb",
+    },
+    {
       title: "Assistant May",
-      description: "Web×IoT Makers Challenge PLUS 2022 Shinshu Grand Prix Winner. An IoT-enabled life support assistant.",
+      description: "Web×IoT メイカーズチャレンジ PLUS 2022 \n全国最優秀賞 総務省国際戦略局長賞 受賞 \nIoTを活用した生活支援アシスタント",
       image: "/images/assistant-may.jpg",
       link: "https://webiotmakers.github.io/2022/winners/",
-      year: "2022",
+      year: "2023/03",
       video: "https://www.youtube.com/watch?v=H77eqvaX4Yg",
     },
   ],
