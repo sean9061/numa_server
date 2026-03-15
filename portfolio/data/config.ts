@@ -29,26 +29,31 @@ export const siteConfig = {
       name: "XR開発",
       description: "Immersive experiences using Unity & WebXR.",
       icon: Box,
+      image: "",
     },
     {
       name: "ロケットのペイロード開発",
       description: "Mission critical systems for aerospace.",
       icon: Rocket,
+      image: "",
     },
     {
       name: "土壌センサーのIoT開発",
       description: "Smart agriculture solutions.",
       icon: Sprout,
+      image: "",
     },
     {
       name: "マイクラ鯖",
       description: "Server administration & plugins.",
       icon: Server,
+      image: "",
     },
     {
       name: "マイコンカーラリー",
       description: "Embedded systems & autonomous driving.",
       icon: Car,
+      image: "/images/Lami_01.png",
     },
   ],
   techStack: [
@@ -68,19 +73,27 @@ export const siteConfig = {
       title: "マイコンカー「Lami_01」",
       description: "マイコンカーラリー アドバンスクラスの車体",
       image: "/images/lami_01.png",
+      video: "",
       link: "",
       year: "2026",
-      video: "",
       gltf: "/models/Lami_01.glb",
     },
     {
       title: "Assistant May",
       description: "Web×IoT メイカーズチャレンジ PLUS 2022 \n全国最優秀賞 総務省国際戦略局長賞 受賞 \nIoTを活用した生活支援アシスタント",
       image: "/images/assistant-may.jpg",
+      video: "https://www.youtube.com/watch?v=H77eqvaX4Yg",
       link: "https://webiotmakers.github.io/2022/winners/",
       year: "2023/03",
-      video: "https://www.youtube.com/watch?v=H77eqvaX4Yg",
     },
+    {
+      title: "Cubic Light Run",
+      description: "キューブの周りに形成されたステージを様々なギミックを攻略していきながらゴールに向かう、新感覚 360°横スクロールゲーム。",
+      image: "",
+      video: "/videos/clr.mov",
+      link: "https://unityroom.com/games/clr_v3",
+      year: "2023",
+    }
   ],
   interests: {
     hobbies: [

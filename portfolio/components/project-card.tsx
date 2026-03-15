@@ -26,8 +26,13 @@ function getYouTubeId(url: string) {
     return (match && match[2].length === 11) ? match[2] : null;
 }
 
+function isLocalVideo(url: string) {
+    return /\.(mp4|mov|webm|ogg)$/i.test(url);
+}
+
 export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps) {
     const videoId = project.video ? getYouTubeId(project.video) : null;
+    const localVideo = project.video && isLocalVideo(project.video) ? project.video : null;
 
     return (
         <BentoCard className={className} delay={delay}>
@@ -40,6 +45,15 @@ export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps)
                             className="absolute inset-0 h-full w-full pointer-events-none scale-[1.35]"
                             src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&playsinline=1`}
                             allow="autoplay; encrypted-media"
+                        />
+                    ) : localVideo ? (
+                        <video
+                            className="absolute inset-0 h-full w-full object-cover"
+                            src={localVideo}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
                         />
                     ) : (
                         <Link href={project.link} target="_blank" className="relative h-full w-full block">
