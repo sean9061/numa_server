@@ -122,9 +122,16 @@ export function ActivitiesCard({ className }: { className?: string }) {
                                 <h4 className="truncate text-sm font-medium text-neutral-900 dark:text-white">
                                     {activity.name}
                                 </h4>
-                                <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                                    {activity.description}
-                                </p>
+                                <div className="mt-0.5 flex flex-wrap gap-1">
+                                    {activity.stack.map((tech) => (
+                                        <span
+                                            key={tech}
+                                            className="rounded-full border border-neutral-300 px-1.5 py-0 text-[10px] text-neutral-400 dark:border-neutral-600 dark:text-neutral-500"
+                                        >
+                                            {tech}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                             {activity.image && (
                                 <div

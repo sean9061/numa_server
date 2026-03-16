@@ -1,4 +1,4 @@
-import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe } from "lucide-react";
+import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe, Globe } from "lucide-react";
 
 export const siteConfig = {
   name: "Sean Fisher",
@@ -26,34 +26,51 @@ export const siteConfig = {
   ],
   mainActivities: [
     {
-      name: "XR開発",
-      description: "Immersive experiences using Unity & WebXR.",
-      icon: Box,
-      image: "",
-    },
-    {
-      name: "ロケットのペイロード開発",
-      description: "Mission critical systems for aerospace.",
+      name: "小型ロケットの缶サット開発",
+      description: "缶サットのファームウェア、データ収集・可視化システムの開発",
+      stack: ["Spresense", "Nginx", "Go", "React", "PostgreSQL"],
       icon: Rocket,
-      image: "",
+      image: "/images/sarvision.png",
+      detail: "",
+      links: [] as { label: string; url: string; icon: typeof Github }[],
     },
     {
       name: "土壌センサーのIoT開発",
-      description: "Smart agriculture solutions.",
+      description: "センサーのファームウェア、データ管理システムの開発",
+      stack: ["Spresense", "Nginx", "Go", "React", "PostgreSQL"],
       icon: Sprout,
-      image: "",
+      image: "/images/tmp.png",
+      detail: "",
+      links: [] as { label: string; url: string; icon: typeof Github }[],
     },
     {
-      name: "マイクラ鯖",
-      description: "Server administration & plugins.",
+      name: "自宅鯖",
+      description: "",
+      stack: ["Docker", "Go", "Next.js"],
       icon: Server,
-      image: "",
+      image: "/images/saba.JPG",
+      detail: "",
+      links: [] as { label: string; url: string; icon: typeof Github }[],
     },
     {
       name: "マイコンカーラリー",
-      description: "Embedded systems & autonomous driving.",
+      description: "",
+      stack: ["C++", "GRpeach", "Fusion 360"],
       icon: Car,
       image: "/images/Lami_01.png",
+      detail: "マイコンカーラリー アドバンスクラスに出場するために制作した自律走行車「Lami_01」。センサーによるコース検知と独自の制御アルゴリズムで高速走行を実現。",
+      links: [
+        { label: "GitHub", url: "https://github.com/sean9061", icon: Github },
+      ],
+    },
+    {
+      name: "XR開発",
+      description: "",
+      stack: ["Unity", "C#", "Three.js", "XREAL Air 2 Ultra"],
+      icon: Box,
+      image: "",
+      detail: "",
+      links: [] as { label: string; url: string; icon: typeof Github }[],
     },
   ],
   techStack: [
