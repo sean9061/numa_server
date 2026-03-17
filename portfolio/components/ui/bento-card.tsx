@@ -32,7 +32,7 @@ export function BentoCard({ children, className, title, delay = 0 }: BentoCardPr
                     {title}
                 </h3>
             )}
-            <div className="flex-1">{children}</div>
+            <div className="flex flex-col flex-1">{children}</div>
         </motion.div>
     );
 }

@@ -32,6 +32,9 @@ const iconMap: Record<string, any> = {
     fusion: SiAutodesk,
 };
 
+const CIRCLE_SIZE = 250;   // px — 円のサイズ
+const CIRCLE_OFFSET_Y = 10; // px — 正の値で下に移動、負の値で上に移動
+
 export function TechStackCard({ className }: { className?: string }) {
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -76,9 +79,10 @@ export function TechStackCard({ className }: { className?: string }) {
 
     return (
         <BentoCard title="Tech Stack" className={className} delay={0.3}>
-            <div className="flex h-full w-full items-center justify-center p-4">
+            <div className="absolute inset-0 flex items-center justify-center p-6" style={{ transform: `translateY(${CIRCLE_OFFSET_Y}px)` }}>
                 <div
-                    className="relative flex aspect-square w-full max-w-[220px] items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900"
+                    className="relative flex aspect-square w-full items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900"
+                    style={{ maxWidth: CIRCLE_SIZE }}
                     onMouseLeave={() => setHoveredIndex(null)}
                 >
                     {siteConfig.techStack.map((tech, i) => {
