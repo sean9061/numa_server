@@ -1,4 +1,5 @@
-import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe, Globe } from "lucide-react";
+import { Github, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe, Globe } from "lucide-react";
+import { SiX, SiZenn } from "react-icons/si";
 
 export const siteConfig = {
   name: "Sean Fisher",
@@ -14,9 +15,9 @@ export const siteConfig = {
       icon: Github,
     },
     {
-      name: "Twitter",
+      name: "X",
       url: "https://twitter.com/sean_9061",
-      icon: Twitter,
+      icon: SiX,
     },
     {
       name: "Instagram",
@@ -26,7 +27,7 @@ export const siteConfig = {
     {
       name: "Zenn",
       url: "https://zenn.dev/seannozenn",
-      icon: Instagram,
+      icon: SiZenn,
     },
   ],
   mainActivities: [
