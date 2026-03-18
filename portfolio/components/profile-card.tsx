@@ -7,7 +7,7 @@ import Image from "next/image";
 
 export function ProfileCard({ className }: { className?: string }) {
     return (
-        <BentoCard className={className} delay={0.1}>
+        <BentoCard className={className} delay={0}>
             <div className="flex h-full flex-col justify-between gap-4">
                 {/* Icon (Avatar) */}
                 <div className="relative h-20 w-20 overflow-hidden rounded-full border-2 border-neutral-100 dark:border-neutral-800">
@@ -36,7 +36,14 @@ export function ProfileCard({ className }: { className?: string }) {
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
                         <MapPin className="h-4 w-4" />
-                        <span>{siteConfig.location}</span>
+                        <a
+                            href="https://eyes.nasa.gov/apps/solar-system/#/earth"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                        >
+                            {siteConfig.location}
+                        </a>
                     </div>
                     {/* @ts-ignore */}
                     <div className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-neutral-200">

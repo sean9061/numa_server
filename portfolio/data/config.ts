@@ -1,4 +1,5 @@
-import { Github, Twitter, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe, Globe } from "lucide-react";
+import { Github, Instagram, Linkedin, Mail, Box, Rocket, Sprout, Server, Car, Snowflake, Printer, Camera, Pickaxe, Globe } from "lucide-react";
+import { SiX, SiZenn } from "react-icons/si";
 
 export const siteConfig = {
   name: "Sean Fisher",
@@ -14,14 +15,19 @@ export const siteConfig = {
       icon: Github,
     },
     {
-      name: "Twitter",
+      name: "X",
       url: "https://twitter.com/sean_9061",
-      icon: Twitter,
+      icon: SiX,
     },
     {
       name: "Instagram",
       url: "https://instagram.com/sean_9061.p",
       icon: Instagram,
+    },
+    {
+      name: "Zenn",
+      url: "https://zenn.dev/seannozenn",
+      icon: SiZenn,
     },
   ],
   mainActivities: [
@@ -94,6 +100,15 @@ export const siteConfig = {
       link: "",
       year: "2026",
       gltf: "/models/Lami_01.glb",
+    },
+    {
+      title: "HDD Music Web",
+      description: "技育CAMP vol.4 で制作した、HDDとステッピングモーターで音楽を奏でるWebアプリ",
+      image: "/images/hdd.JPG",
+      video: "",
+      link: "https://github.com/lc-tut/hdd-music-web",
+      year: "2025/05",
+      gltf: "",
     },
     {
       title: "Assistant May",

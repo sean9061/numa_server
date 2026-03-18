@@ -104,16 +104,19 @@ function ActivityModal({ activity, onClose }: { activity: Activity; onClose: () 
 
 export function ActivitiesCard({ className }: { className?: string }) {
     const [selected, setSelected] = useState<Activity | null>(null);
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
     return (
         <>
-            <BentoCard title="Main Activities" className={className} delay={0.2}>
+            <BentoCard title="Main Activities" className={className} delay={0.3}>
                 <div className="flex flex-col gap-4 h-full">
-                    {siteConfig.mainActivities.map((activity) => (
+                    {siteConfig.mainActivities.map((activity, index) => (
                         <button
                             key={activity.name}
                             onClick={() => setSelected(activity)}
                             className="relative flex flex-1 items-center gap-3 rounded-xl bg-neutral-50 overflow-hidden p-2 transition-colors hover:bg-neutral-100 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-left w-full cursor-pointer"
+                            onMouseEnter={() => setHoveredIndex(index)}
+                            onMouseLeave={() => setHoveredIndex(null)}
                         >
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-neutral-900">
                                 <activity.icon className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
@@ -142,7 +145,12 @@ export function ActivitiesCard({ className }: { className?: string }) {
                                         src={activity.image}
                                         alt={activity.name}
                                         fill
-                                        className="object-cover"
+                                        className="object-cover scale-110"
+                                        style={{ filter: "blur(1px)" }}
+                                    />
+                                    <div
+                                        className="absolute inset-0 bg-black/20 transition-opacity duration-200"
+                                        style={{ opacity: hoveredIndex === index ? 0 : 1 }}
                                     />
                                 </div>
                             )}
