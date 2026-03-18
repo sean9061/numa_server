@@ -23,6 +23,11 @@ export const siteConfig = {
       url: "https://instagram.com/sean_9061.p",
       icon: Instagram,
     },
+    {
+      name: "Zenn",
+      url: "https://zenn.dev/seannozenn",
+      icon: Instagram,
+    },
   ],
   mainActivities: [
     {
