@@ -15,7 +15,7 @@ export function InterestsCard({ className }: { className?: string }) {
     const [hovered, setHovered] = useState<string | null>(null);
 
     return (
-        <BentoCard title="Hobbies" className={className} delay={0.4}>
+        <BentoCard title="Hobbies" className={className} delay={1.2}>
             <div className="flex h-full w-full flex-col gap-2 md:flex-row">
                 {siteConfig.interests.hobbies.map((hobby) => (
                     <motion.div

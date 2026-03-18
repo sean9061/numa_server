@@ -108,7 +108,7 @@ export function ActivitiesCard({ className }: { className?: string }) {
 
     return (
         <>
-            <BentoCard title="Main Activities" className={className} delay={0.2}>
+            <BentoCard title="Main Activities" className={className} delay={0.3}>
                 <div className="flex flex-col gap-4 h-full">
                     {siteConfig.mainActivities.map((activity, index) => (
                         <button

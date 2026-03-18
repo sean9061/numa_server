@@ -7,7 +7,7 @@ import { ArrowUpRight } from "lucide-react";
 
 export function SocialLinksCard({ className }: { className?: string }) {
     return (
-        <BentoCard title="Connect" className={className} delay={0.2}>
+        <BentoCard title="Connect" className={className} delay={0.6}>
             <div className="flex flex-col gap-3">
                 {siteConfig.socials.map((social) => (
                     <Link

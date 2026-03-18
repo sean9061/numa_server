@@ -96,6 +96,15 @@ export const siteConfig = {
       gltf: "/models/Lami_01.glb",
     },
     {
+      title: "HDD Music Web",
+      description: "技育CAMP vol.4 で制作した、HDDとステッピングモーターで音楽を奏でるWebアプリ",
+      image: "/images/hdd.JPG",
+      video: "",
+      link: "https://github.com/lc-tut/hdd-music-web",
+      year: "2025/05",
+      gltf: "",
+    },
+    {
       title: "Assistant May",
       description: "Web×IoT メイカーズチャレンジ PLUS 2022 \n全国最優秀賞 総務省国際戦略局長賞 受賞 \nIoTを活用した生活支援アシスタント",
       image: "/images/assistant-may.jpg",

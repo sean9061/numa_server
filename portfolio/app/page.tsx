@@ -4,10 +4,12 @@ import { SocialLinksCard } from "@/components/social-card";
 import { TechStackCard } from "@/components/tech-stack-card";
 import { ProjectCard } from "@/components/project-card";
 import { InterestsCard } from "@/components/interests-card";
+import { LoadingProvider } from "@/components/ui/loading-provider";
 import { siteConfig } from "@/data/config";
 
 export default function Home() {
   return (
+    <LoadingProvider>
     <main className="min-h-screen bg-neutral-50 p-4 text-neutral-900 md:p-8 dark:bg-neutral-950 dark:text-neutral-50">
       <div className="mx-auto max-w-7xl grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
 
@@ -19,11 +21,11 @@ export default function Home() {
         {/* Activities: Right (2x2) - Spans 2 rows */}
         <ActivitiesCard className="col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2 aspect-auto md:aspect-square h-full" />
 
-        {/* Tech Stack: Left (1x1) */}
-        <TechStackCard className="col-span-1 md:col-span-1 aspect-square" />
-
         {/* Social: Middle (1x1) */}
         <SocialLinksCard className="col-span-1 aspect-square" />
+
+        {/* Tech Stack: Left (1x1) */}
+        <TechStackCard className="col-span-1 md:col-span-1 aspect-square" />
 
         {/* Row 3 */}
 
@@ -51,5 +53,6 @@ export default function Home() {
 
       </div>
     </main>
+    </LoadingProvider>
   );
 }

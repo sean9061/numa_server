@@ -78,7 +78,7 @@ export function TechStackCard({ className }: { className?: string }) {
     };
 
     return (
-        <BentoCard title="Tech Stack" className={className} delay={0.3}>
+        <BentoCard title="Tech Stack" className={className} delay={0.9}>
             <div className="absolute inset-0 flex items-center justify-center p-6" style={{ transform: `translateY(${CIRCLE_OFFSET_Y}px)` }}>
                 <div
                     className="relative flex aspect-square w-full items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900"
