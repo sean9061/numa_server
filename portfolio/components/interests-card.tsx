@@ -12,53 +12,68 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export function InterestsCard({ className }: { className?: string }) {
-    const [hovered, setHovered] = useState<string | null>(null);
+    // active はマウスホバーとタップ両方で使う
+    const [active, setActive] = useState<string | null>(null);
 
     return (
         <BentoCard title="Hobbies" className={className} delay={1.2}>
             <div className="flex h-full w-full flex-col gap-2 md:flex-row">
                 {siteConfig.interests.hobbies.map((hobby) => (
-                    <motion.div
-                        layout
+                    <div
                         key={hobby.name}
-                        onHoverStart={() => setHovered(hobby.name)}
-                        onHoverEnd={() => setHovered(null)}
-                        className={cn(
-                            "relative flex cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-neutral-100 transition-colors hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700",
-                            "h-[60px] md:h-full w-full md:w-auto",
-                            hovered === hobby.name ? "md:flex-[3]" : "md:flex-[1]"
-                        )}
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        onPointerEnter={(e) => { if (e.pointerType === "mouse") setActive(hobby.name); }}
+                        onPointerLeave={(e) => { if (e.pointerType === "mouse") setActive(null); }}
+                        onClick={() => setActive(prev => prev === hobby.name ? null : hobby.name)}
+                        className="relative flex cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800 w-full md:w-auto"
+                        style={{
+                            flexGrow: active === hobby.name ? 3 : 1,
+                            flexShrink: 1,
+                            flexBasis: 0,
+                            minHeight: active === hobby.name ? "160px" : "64px",
+                            transition: "flex-grow 0.3s ease-in-out, min-height 0.3s ease-in-out",
+                        }}
                     >
-                        <div className="flex flex-col items-center justify-center p-4">
-                            <motion.div
-                                layout
+                        {/* Background image — fixed min-width so narrow flex state doesn't compress it */}
+                        {hobby.image && (
+                            <div
+                                className="absolute top-0 bottom-0 bg-cover bg-center"
+                                style={{
+                                    left: "50%",
+                                    width: "400px",
+                                    transform: "translateX(-50%)",
+                                    backgroundImage: `url(${hobby.image})`,
+                                    filter: active === hobby.name ? "blur(0px) brightness(0.7)" : "blur(4px) brightness(0.5)",
+                                    transition: "filter 0.5s ease",
+                                    willChange: "filter",
+                                }}
+                            />
+                        )}
+
+                        <div className="relative z-10 flex flex-col items-center justify-center p-4">
+                            <div
                                 className={cn(
-                                    "flex items-center justify-center rounded-full transition-colors duration-300",
-                                    hovered === hobby.name 
-                                        ? "mb-2 h-12 w-12 bg-white shadow-sm dark:bg-neutral-900" 
+                                    "flex items-center justify-center rounded-full",
+                                    active === hobby.name
+                                        ? "mb-2 h-12 w-12 bg-white/20 shadow-sm backdrop-blur-sm"
                                         : "h-6 w-6"
                                 )}
                             >
-                                <hobby.icon 
-                                    className={cn(
-                                        "h-6 w-6 transition-colors duration-300",
-                                        hovered === hobby.name ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"
-                                    )} 
+                                <hobby.icon
+                                    className="h-6 w-6 text-white drop-shadow"
                                 />
-                            </motion.div>
-                            
-                            {hovered === hobby.name && (
+                            </div>
+
+                            {active === hobby.name && (
                                 <motion.h4
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="text-lg font-bold text-neutral-900 dark:text-white whitespace-nowrap"
+                                    className="text-lg font-bold text-white whitespace-nowrap drop-shadow"
                                 >
                                     {hobby.name}
                                 </motion.h4>
                             )}
                         </div>
-                    </motion.div>
+                    </div>
                 ))}
             </div>
         </BentoCard>

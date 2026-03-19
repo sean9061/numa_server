@@ -84,6 +84,7 @@ export function TechStackCard({ className }: { className?: string }) {
                     className="relative flex aspect-square w-full items-center justify-center rounded-full border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900"
                     style={{ maxWidth: CIRCLE_SIZE }}
                     onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => setHoveredIndex(null)}
                 >
                     {siteConfig.techStack.map((tech, i) => {
                         const Icon = iconMap[tech.icon] || Globe;
@@ -167,14 +168,22 @@ export function TechStackCard({ className }: { className?: string }) {
                                     stiffness: 200,
                                     damping: 20,
                                 }}
-                                onMouseEnter={() => setHoveredIndex(i)}
+                                onPointerEnter={(e) => { if (e.pointerType === "mouse") setHoveredIndex(i); }}
                             >
                                 <a
                                     href={tech.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="block h-full w-full"
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        // 1回目のタップ: 展開のみ（ナビゲーションしない）
+                                        // 2回目のタップ: リンクへ
+                                        if (hoveredIndex !== i) {
+                                            e.preventDefault();
+                                            setHoveredIndex(i);
+                                        }
+                                        e.stopPropagation();
+                                    }}
                                 >
                                     <div
                                         className={`relative flex h-10 w-10 flex-col items-center justify-center rounded-full bg-white transition-all duration-300 dark:bg-neutral-800 ${isHovered ? 'bg-neutral-50 dark:bg-neutral-700' : ''}`}

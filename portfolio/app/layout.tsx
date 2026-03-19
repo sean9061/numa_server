@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "s3an.dev",
   description: "My Portfolio",
+  openGraph: {
+    type: "website",
+    title: "s3an.dev",
+    description: "My Portfolio",
+  },
 };
 
 export default function RootLayout({

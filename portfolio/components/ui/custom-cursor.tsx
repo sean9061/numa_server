@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 
 // Circle: 4 cubic beziers, M at (10,0)
@@ -38,6 +38,12 @@ function blendPath(t: number): string {
 }
 
 export function CustomCursor() {
+    const [isTouch, setIsTouch] = useState(false);
+
+    useEffect(() => {
+        setIsTouch(window.matchMedia("(pointer: coarse)").matches);
+    }, []);
+
     const mouseX = useMotionValue(-100);
     const mouseY = useMotionValue(-100);
 
@@ -87,6 +93,8 @@ export function CustomCursor() {
         window.addEventListener("mousemove", onMove);
         return () => window.removeEventListener("mousemove", onMove);
     }, [mouseX, mouseY, blend, rotate]);
+
+    if (isTouch) return null;
 
     return (
         <motion.svg
