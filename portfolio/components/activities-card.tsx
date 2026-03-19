@@ -19,13 +19,10 @@ function ActivityModal({ activity, onClose }: { activity: Activity; onClose: () 
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
             >
-                {/* Backdrop */}
                 <motion.div
                     className="absolute inset-0 bg-black/60 backdrop-blur-sm"
                     onClick={onClose}
                 />
-
-                {/* Modal */}
                 <motion.div
                     className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-neutral-900"
                     initial={{ scale: 0.92, opacity: 0, y: 16 }}
@@ -33,42 +30,26 @@ function ActivityModal({ activity, onClose }: { activity: Activity; onClose: () 
                     exit={{ scale: 0.92, opacity: 0, y: 16 }}
                     transition={{ type: "spring", stiffness: 320, damping: 28 }}
                 >
-                    {/* Image */}
                     <div className="relative aspect-video w-full bg-neutral-100 dark:bg-neutral-800">
                         {activity.image ? (
-                            <Image
-                                src={activity.image}
-                                alt={activity.name}
-                                fill
-                                className="object-cover"
-                            />
+                            <Image src={activity.image} alt={activity.name} fill className="object-cover" />
                         ) : (
                             <div className="flex h-full items-center justify-center">
                                 <activity.icon className="h-16 w-16 text-neutral-300 dark:text-neutral-600" />
                             </div>
                         )}
                     </div>
-
-                    {/* Content */}
                     <div className="p-5">
                         <div className="mb-1 flex items-center gap-2">
                             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-800">
                                 <activity.icon className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
                             </div>
-                            <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
-                                {activity.name}
-                            </h3>
+                            <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{activity.name}</h3>
                         </div>
-                        <p className="mb-1 text-sm text-neutral-500 dark:text-neutral-400">
-                            {activity.description}
-                        </p>
+                        <p className="mb-1 text-sm text-neutral-500 dark:text-neutral-400">{activity.description}</p>
                         {activity.detail && (
-                            <p className="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">
-                                {activity.detail}
-                            </p>
+                            <p className="mt-3 text-sm leading-relaxed text-neutral-700 dark:text-neutral-300">{activity.detail}</p>
                         )}
-
-                        {/* Links */}
                         {activity.links.length > 0 && (
                             <div className="mt-4 flex flex-wrap gap-2">
                                 {activity.links.map((link) => (
@@ -87,8 +68,6 @@ function ActivityModal({ activity, onClose }: { activity: Activity; onClose: () 
                             </div>
                         )}
                     </div>
-
-                    {/* Close button */}
                     <button
                         onClick={onClose}
                         className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm transition-colors hover:bg-black/60"
@@ -114,7 +93,8 @@ export function ActivitiesCard({ className }: { className?: string }) {
                         <button
                             key={activity.name}
                             onClick={() => setSelected(activity)}
-                            className="relative flex flex-1 items-center gap-3 rounded-xl bg-neutral-50 overflow-hidden p-2 transition-colors hover:bg-neutral-100 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-left w-full cursor-pointer"
+                            // pr はモバイル(60px)とsm以上(96px)で画像幅に合わせる
+                            className="relative flex flex-1 items-center gap-3 rounded-xl bg-neutral-50 overflow-hidden p-2 pr-[68px] sm:pr-[104px] transition-colors hover:bg-neutral-100 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-left w-full cursor-pointer"
                             onMouseEnter={() => setHoveredIndex(index)}
                             onMouseLeave={() => setHoveredIndex(null)}
                         >
@@ -136,9 +116,10 @@ export function ActivitiesCard({ className }: { className?: string }) {
                                     ))}
                                 </div>
                             </div>
+                            {/* 画像: モバイルは60px幅, sm以上は96px幅 */}
                             {activity.image && (
                                 <div
-                                    className="absolute inset-y-0 right-0 w-30"
+                                    className="absolute inset-y-0 right-0 w-[60px] sm:w-24"
                                     style={{ clipPath: "polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%)" }}
                                 >
                                     <Image

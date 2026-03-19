@@ -12,7 +12,8 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export function InterestsCard({ className }: { className?: string }) {
-    const [hovered, setHovered] = useState<string | null>(null);
+    // active はマウスホバーとタップ両方で使う
+    const [active, setActive] = useState<string | null>(null);
 
     return (
         <BentoCard title="Hobbies" className={className} delay={1.2}>
@@ -20,14 +21,16 @@ export function InterestsCard({ className }: { className?: string }) {
                 {siteConfig.interests.hobbies.map((hobby) => (
                     <div
                         key={hobby.name}
-                        onMouseEnter={() => setHovered(hobby.name)}
-                        onMouseLeave={() => setHovered(null)}
-                        className="relative flex cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800 h-[60px] md:h-full w-full md:w-auto"
+                        onPointerEnter={(e) => { if (e.pointerType === "mouse") setActive(hobby.name); }}
+                        onPointerLeave={(e) => { if (e.pointerType === "mouse") setActive(null); }}
+                        onClick={() => setActive(prev => prev === hobby.name ? null : hobby.name)}
+                        className="relative flex cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800 w-full md:w-auto"
                         style={{
-                            flexGrow: hovered === hobby.name ? 3 : 1,
+                            flexGrow: active === hobby.name ? 3 : 1,
                             flexShrink: 1,
                             flexBasis: 0,
-                            transition: "flex-grow 0.3s ease-in-out",
+                            minHeight: active === hobby.name ? "160px" : "64px",
+                            transition: "flex-grow 0.3s ease-in-out, min-height 0.3s ease-in-out",
                         }}
                     >
                         {/* Background image — fixed min-width so narrow flex state doesn't compress it */}
@@ -39,7 +42,7 @@ export function InterestsCard({ className }: { className?: string }) {
                                     width: "400px",
                                     transform: "translateX(-50%)",
                                     backgroundImage: `url(${hobby.image})`,
-                                    filter: hovered === hobby.name ? "blur(0px) brightness(0.7)" : "blur(4px) brightness(0.5)",
+                                    filter: active === hobby.name ? "blur(0px) brightness(0.7)" : "blur(4px) brightness(0.5)",
                                     transition: "filter 0.5s ease",
                                     willChange: "filter",
                                 }}
@@ -50,7 +53,7 @@ export function InterestsCard({ className }: { className?: string }) {
                             <div
                                 className={cn(
                                     "flex items-center justify-center rounded-full",
-                                    hovered === hobby.name
+                                    active === hobby.name
                                         ? "mb-2 h-12 w-12 bg-white/20 shadow-sm backdrop-blur-sm"
                                         : "h-6 w-6"
                                 )}
@@ -60,7 +63,7 @@ export function InterestsCard({ className }: { className?: string }) {
                                 />
                             </div>
 
-                            {hovered === hobby.name && (
+                            {active === hobby.name && (
                                 <motion.h4
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
