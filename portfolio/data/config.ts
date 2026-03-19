@@ -51,7 +51,7 @@ export const siteConfig = {
     },
     {
       name: "自宅鯖",
-      description: "",
+      description: "Webサーバー、NASサーバー、AIサーバー、マイクラサーバーなどを運用",
       stack: ["Docker", "Go", "Next.js"],
       icon: Server,
       image: "/images/saba.JPG",
@@ -60,7 +60,7 @@ export const siteConfig = {
     },
     {
       name: "マイコンカーラリー",
-      description: "",
+      description: "カメラを使った画像認識でラインとレースをするマイコンカーラリー。設計からプログラムまで（基盤設計を除く）すべてを個人で開発。",
       stack: ["C++", "GRpeach", "Fusion 360"],
       icon: Car,
       image: "/images/Lami_01.png",
@@ -129,11 +129,11 @@ export const siteConfig = {
   ],
   interests: {
     hobbies: [
-      { name: "スキー", icon: Snowflake },
-      { name: "多肉植物", icon: Sprout },
-      { name: "3Dプリンター", icon: Printer },
-      { name: "カメラ", icon: Camera },
-      { name: "マイクラ", icon: Pickaxe },
+      { name: "スキー",       icon: Snowflake, image: "/images/hobbies/ski.jpg" },
+      { name: "多肉植物",     icon: Sprout,    image: "/images/hobbies/succulent.jpg" },
+      { name: "3Dプリンター", icon: Printer,   image: "/images/hobbies/3dprinter.jpg" },
+      { name: "カメラ",       icon: Camera,    image: "/images/hobbies/camera.jpg" },
+      { name: "マイクラ",     icon: Pickaxe,   image: "/images/hobbies/minecraft.jpg" },
     ],
   },
 };
