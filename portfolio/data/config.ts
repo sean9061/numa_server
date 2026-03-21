@@ -101,6 +101,15 @@ export const siteConfig = {
       year: "2026",
       gltf: "/models/Lami_01.glb",
     },
+    // {
+    //   title: "ollama server",
+    //   description: "",
+    //   image: "",
+    //   video: "",
+    //   link: "",
+    //   year: "2025",
+    //   gltf: "",
+    // },
     {
       title: "HDD Music Web",
       description: "技育CAMP vol.4 で制作した、HDDとステッピングモーターで音楽を奏でるWebアプリ",
