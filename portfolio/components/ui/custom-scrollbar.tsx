@@ -37,6 +37,7 @@ function buildPath(totalH: number, thumbY: number, thumbH: number): string {
 }
 
 export function CustomScrollbar() {
+    const [isTouch, setIsTouch] = useState(false);
     const [thumbH, setThumbH] = useState(0);
     const [thumbY, setThumbY] = useState(0);
     const [winH, setWinH]     = useState(0);
@@ -65,6 +66,8 @@ export function CustomScrollbar() {
     };
 
     useEffect(() => {
+        setIsTouch(window.matchMedia("(pointer: coarse)").matches);
+
         const mq = window.matchMedia("(prefers-color-scheme: dark)");
         setDark(mq.matches);
         const onMq = (e: MediaQueryListEvent) => setDark(e.matches);
@@ -118,7 +121,7 @@ export function CustomScrollbar() {
         document.documentElement.scrollTop = ratio * maxScroll;
     };
 
-    if (winH === 0) return null;
+    if (isTouch || winH === 0) return null;
 
     const fill = dragging
         ? (dark ? COLOR_DRAG_DARK : COLOR_DRAG)

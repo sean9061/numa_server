@@ -93,10 +93,9 @@ export function ActivitiesCard({ className }: { className?: string }) {
                         <button
                             key={activity.name}
                             onClick={() => setSelected(activity)}
-                            // pr はモバイル(60px)とsm以上(96px)で画像幅に合わせる
+                            onPointerEnter={(e) => { if (e.pointerType === "mouse") setHoveredIndex(index); }}
+                            onPointerLeave={(e) => { if (e.pointerType === "mouse") setHoveredIndex(null); }}
                             className="relative flex flex-1 items-center gap-3 rounded-xl bg-neutral-50 overflow-hidden p-2 pr-[68px] sm:pr-[104px] transition-colors hover:bg-neutral-100 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-left w-full cursor-pointer"
-                            onMouseEnter={() => setHoveredIndex(index)}
-                            onMouseLeave={() => setHoveredIndex(null)}
                         >
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-neutral-900">
                                 <activity.icon className="h-4 w-4 text-neutral-700 dark:text-neutral-300" />
@@ -116,22 +115,17 @@ export function ActivitiesCard({ className }: { className?: string }) {
                                     ))}
                                 </div>
                             </div>
-                            {/* 画像: モバイルは60px幅, sm以上は96px幅 */}
                             {activity.image && (
                                 <div
-                                    className="absolute inset-y-0 right-0"
-                                    style={{
-                                        width: hoveredIndex === index ? "30%" : "120px",
-                                        clipPath: "polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%)",
-                                        transition: "width 0.2s ease-in-out",
-                                    }}
+                                    className="absolute inset-y-0 right-0 w-[60px] sm:w-24"
+                                    style={{ clipPath: "polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%)" }}
                                 >
                                     <Image
                                         src={activity.image}
                                         alt={activity.name}
                                         fill
                                         className="object-cover scale-110 transition-all duration-200"
-                                        style={{ filter: hoveredIndex === index ? "blur(0px)" : "blur(1px)" }}
+                                        style={{ filter: hoveredIndex === index ? "blur(0px)" : "blur(0.5px)" }}
                                     />
                                     <div
                                         className="absolute inset-0 bg-black/20 transition-opacity duration-200"
