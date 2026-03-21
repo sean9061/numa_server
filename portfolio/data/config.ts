@@ -60,11 +60,11 @@ export const siteConfig = {
     },
     {
       name: "マイコンカーラリー",
-      description: "カメラを使った画像認識でラインとレースをするマイコンカーラリー。設計からプログラムまで（基盤設計を除く）すべてを個人で開発。",
+      description: "カメラを使った画像認識でラインとレースをするマイコンカーラリー。設計からプログラムまで（基盤設計を除く）をすべて個人で開発。",
       stack: ["C++", "GRpeach", "Fusion 360"],
       icon: Car,
       image: "/images/Lami_01.png",
-      detail: "マイコンカーラリー アドバンスクラスに出場するために制作した自律走行車「Lami_01」。センサーによるコース検知と独自の制御アルゴリズムで高速走行を実現。",
+      detail: "",
       links: [
         { label: "GitHub", url: "https://github.com/sean9061", icon: Github },
       ],
@@ -101,15 +101,15 @@ export const siteConfig = {
       year: "2026",
       gltf: "/models/Lami_01.glb",
     },
-    // {
-    //   title: "ollama server",
-    //   description: "",
-    //   image: "",
-    //   video: "",
-    //   link: "",
-    //   year: "2025",
-    //   gltf: "",
-    // },
+    {
+      title: "ollama server",
+      description: "",
+      image: "/images/ollama.png",
+      video: "/videos/ollama.mp4",
+      link: "https://github.com/sean9061/ollama_server",
+      year: "2025",
+      gltf: "",
+    },
     {
       title: "HDD Music Web",
       description: "技育CAMP vol.4 で制作した、HDDとステッピングモーターで音楽を奏でるWebアプリ",
