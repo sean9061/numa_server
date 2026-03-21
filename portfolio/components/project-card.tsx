@@ -16,6 +16,7 @@ interface ProjectCardProps {
         year: string;
         video?: string;
         gltf?: string;
+        comingSoon?: boolean;
     };
     className?: string;
     delay?: number;
@@ -40,6 +41,18 @@ export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps)
     const videoId = project.video ? getYouTubeId(project.video) : null;
     const localVideo = project.video && isLocalVideo(project.video) ? project.video : null;
     const xStatusId = project.video ? getXStatusId(project.video) : null;
+
+    if (project.comingSoon) {
+        return (
+            <BentoCard className={className} delay={delay}>
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <div className="text-3xl">🚧</div>
+                    <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Coming Soon</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500">新しいプロジェクトを準備中...</p>
+                </div>
+            </BentoCard>
+        );
+    }
 
     return (
         <BentoCard className={className} delay={delay}>
