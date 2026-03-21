@@ -119,15 +119,19 @@ export function ActivitiesCard({ className }: { className?: string }) {
                             {/* 画像: モバイルは60px幅, sm以上は96px幅 */}
                             {activity.image && (
                                 <div
-                                    className="absolute inset-y-0 right-0 w-[60px] sm:w-24"
-                                    style={{ clipPath: "polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%)" }}
+                                    className="absolute inset-y-0 right-0"
+                                    style={{
+                                        width: hoveredIndex === index ? "30%" : "120px",
+                                        clipPath: "polygon(28% 0%, 100% 0%, 100% 100%, 0% 100%)",
+                                        transition: "width 0.2s ease-in-out",
+                                    }}
                                 >
                                     <Image
                                         src={activity.image}
                                         alt={activity.name}
                                         fill
-                                        className="object-cover scale-110"
-                                        style={{ filter: "blur(1px)" }}
+                                        className="object-cover scale-110 transition-all duration-200"
+                                        style={{ filter: hoveredIndex === index ? "blur(0px)" : "blur(1px)" }}
                                     />
                                     <div
                                         className="absolute inset-0 bg-black/20 transition-opacity duration-200"

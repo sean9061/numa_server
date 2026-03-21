@@ -5,6 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { GLTFViewer } from "./ui/gltf-viewer";
+import { Tweet } from "react-tweet";
 
 interface ProjectCardProps {
     project: {
@@ -15,6 +16,7 @@ interface ProjectCardProps {
         year: string;
         video?: string;
         gltf?: string;
+        comingSoon?: boolean;
     };
     className?: string;
     delay?: number;
@@ -27,12 +29,30 @@ function getYouTubeId(url: string) {
 }
 
 function isLocalVideo(url: string) {
-    return /\.(mp4|mov|webm|ogg)$/i.test(url);
+    return /\.(mp4|mov|webm|ogg)(\?.*)?$/i.test(url) || url.includes("video.twimg.com");
+}
+
+function getXStatusId(url: string) {
+    const match = url.match(/(?:x\.com|twitter\.com)\/(?:i\/status|[^/]+\/status)\/(\d+)/);
+    return match ? match[1] : null;
 }
 
 export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps) {
     const videoId = project.video ? getYouTubeId(project.video) : null;
     const localVideo = project.video && isLocalVideo(project.video) ? project.video : null;
+    const xStatusId = project.video ? getXStatusId(project.video) : null;
+
+    if (project.comingSoon) {
+        return (
+            <BentoCard className={className} delay={delay}>
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+                    <div className="text-3xl">🚧</div>
+                    <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Coming Soon</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500">新しいプロジェクトを準備中...</p>
+                </div>
+            </BentoCard>
+        );
+    }
 
     return (
         <BentoCard className={className} delay={delay}>
@@ -46,6 +66,10 @@ export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps)
                             src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&playsinline=1`}
                             allow="autoplay; encrypted-media"
                         />
+                    ) : xStatusId ? (
+                        <div className="absolute inset-0 overflow-y-auto flex justify-center [&>div]:w-full [&_article]:!m-0 [&_.react-tweet-theme]:!m-0">
+                            <Tweet id={xStatusId} />
+                        </div>
                     ) : localVideo ? (
                         <video
                             className="absolute inset-0 h-full w-full object-cover"

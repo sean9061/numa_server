@@ -29,6 +29,14 @@ body {
   cursor: none !important;
 }
 
+/* ネイティブスクロールバーを非表示 (カスタムコンポーネントを使用) */
+html {
+  scrollbar-width: none;
+}
+::-webkit-scrollbar {
+  display: none;
+}
+
 @media (pointer: coarse) {
   *, *::before, *::after {
     cursor: auto !important;
