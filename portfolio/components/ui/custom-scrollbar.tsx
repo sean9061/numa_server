@@ -68,9 +68,9 @@ export function CustomScrollbar() {
     useEffect(() => {
         setIsTouch(window.matchMedia("(pointer: coarse)").matches);
 
+        setDark(document.documentElement.classList.contains("dark"));
         const mq = window.matchMedia("(prefers-color-scheme: dark)");
-        setDark(mq.matches);
-        const onMq = (e: MediaQueryListEvent) => setDark(e.matches);
+        const onMq = () => setDark(document.documentElement.classList.contains("dark"));
         mq.addEventListener("change", onMq);
 
         window.addEventListener("scroll", updateThumb, { passive: true });
