@@ -8,6 +8,9 @@ export const siteConfig = {
   affiliation: "Tokyo University of Technology",
   location: "地球",
   avatar: "/images/icon.webp",
+  email: "sean.2005sfsf@gmail.com",
+  siteUrl: "https://s3an.dev",
+  availability: "Enjoying student life",
   socials: [
     {
       name: "GitHub",

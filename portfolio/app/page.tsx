@@ -1,6 +1,6 @@
 import { ProfileCard } from "@/components/profile-card";
 import { ActivitiesCard } from "@/components/activities-card";
-import { SocialLinksCard } from "@/components/social-card";
+import { ContactCard } from "@/components/contact-card";
 import { TechStackCard } from "@/components/tech-stack-card";
 import { ProjectCard } from "@/components/project-card";
 import { InterestsCard } from "@/components/interests-card";
@@ -21,8 +21,6 @@ export default function Home() {
         {/* Activities: Right (2x2) - Spans 2 rows */}
         <ActivitiesCard className="col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2 aspect-auto md:aspect-square h-full" />
 
-        {/* Social: Middle (1x1) */}
-        <SocialLinksCard className="col-span-1 aspect-square" />
 
         {/* Tech Stack: Left (1x1) */}
         <TechStackCard className="col-span-1 md:col-span-1 aspect-square" />
@@ -31,6 +29,9 @@ export default function Home() {
 
         {/* Interests: Row 3 Middle (2x1) */}
         <InterestsCard className="col-span-1 md:col-span-2 lg:col-span-2 aspect-auto md:aspect-[2/1]" />
+
+        {/* Contact: Row 3 Last (1x1) */}
+        <ContactCard className="col-span-1 aspect-square" />
       </div>
 
       <div className="my-10 w-full border-t border-dashed border-neutral-200 dark:border-neutral-800" />
