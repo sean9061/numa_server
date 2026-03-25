@@ -29,7 +29,7 @@ body {
 }
 
 /* ネイティブスクロールバーを非表示 (カスタムコンポーネントを使用) */
-@media (pointer: fine) {
+@media (min-width: 640px) {
   html {
     scrollbar-width: none;
   }
