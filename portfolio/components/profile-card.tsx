@@ -5,7 +5,7 @@ import { BentoCard } from "@/components/ui/bento-card";
 import { MapPin, Building2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const themeColors: Record<string, string> = {
     GitHub:    "#6e40c9",
@@ -16,6 +16,15 @@ const themeColors: Record<string, string> = {
 
 export function ProfileCard({ className }: { className?: string }) {
     const [hovered, setHovered] = useState<string | null>(null);
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const update = () => setIsMobile(window.innerWidth < 640);
+        update();
+        window.addEventListener("resize", update);
+        return () => window.removeEventListener("resize", update);
+    }, []);
+
     return (
         <BentoCard className={className} delay={0}>
             <div className="flex h-full gap-4">
@@ -66,7 +75,7 @@ export function ProfileCard({ className }: { className?: string }) {
                 </div>
 
                 {/* Right: social icons */}
-                <div className="flex flex-col items-end justify-between py-1">
+                <div className="flex flex-col items-end justify-between gap-3 py-1">
                     {siteConfig.socials.map((social) => {
                         const color = themeColors[social.name] ?? "#888888";
                         const isHovered = hovered === social.name;
@@ -77,10 +86,13 @@ export function ProfileCard({ className }: { className?: string }) {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 aria-label={social.name}
-                                className="flex h-13 w-[130px] flex-row items-center overflow-hidden rounded-full transition-all duration-300"
+                                className="flex h-13 flex-row items-center overflow-hidden rounded-full transition-all duration-300"
                                 style={{
-                                    backgroundColor: isHovered ? `${color}20` : "rgba(128,128,128,0.10)",
-                                    boxShadow: isHovered ? `0 0 3px 1px ${color}70` : "none",
+                                    width: isMobile ? "52px" : "130px",
+                                    background: isHovered
+                                        ? `linear-gradient(to top, ${color}45 0%, ${color}10 50%, transparent 100%)`
+                                        : `linear-gradient(to top, ${color}22 0%, ${color}05 50%, transparent 100%)`,
+                                    boxShadow: isHovered ? `inset 0 -1px 5px 0 ${color}50` : `inset 0 -1px 6px 0 ${color}28`,
                                     color: isHovered ? color : "rgba(160,160,160,0.9)",
                                 }}
                                 onMouseEnter={() => setHovered(social.name)}
@@ -89,9 +101,11 @@ export function ProfileCard({ className }: { className?: string }) {
                                 <div className="flex h-13 w-13 shrink-0 items-center justify-center">
                                     <social.icon className="h-5 w-5 transition-colors duration-200" />
                                 </div>
-                                <span className="whitespace-nowrap pr-3 text-sm font-medium">
-                                    {social.name}
-                                </span>
+                                {!isMobile && (
+                                    <span className="whitespace-nowrap pr-3 text-sm font-medium">
+                                        {social.name}
+                                    </span>
+                                )}
                             </Link>
                         );
                     })}
