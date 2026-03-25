@@ -13,21 +13,25 @@ export const siteConfig = {
       name: "GitHub",
       url: "https://github.com/sean9061",
       icon: Github,
+      color: "#6e7681",
     },
     {
       name: "X",
       url: "https://twitter.com/sean_9061",
       icon: SiX,
+      color: "#000000",
     },
     {
       name: "Instagram",
       url: "https://instagram.com/sean_9061.p",
       icon: Instagram,
+      color: "#E1306C",
     },
     {
       name: "Zenn",
       url: "https://zenn.dev/seannozenn",
       icon: SiZenn,
+      color: "#3EA8FF",
     },
   ],
   mainActivities: [
