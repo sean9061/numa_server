@@ -66,7 +66,8 @@ export function CustomScrollbar() {
     };
 
     useEffect(() => {
-        setIsTouch(window.matchMedia("(pointer: coarse)").matches);
+        const updateIsTouch = () => setIsTouch(window.innerWidth < 640);
+        updateIsTouch();
 
         setDark(document.documentElement.classList.contains("dark"));
         const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -75,10 +76,12 @@ export function CustomScrollbar() {
 
         window.addEventListener("scroll", updateThumb, { passive: true });
         window.addEventListener("resize", updateThumb);
+        window.addEventListener("resize", updateIsTouch);
         updateThumb();
         return () => {
             window.removeEventListener("scroll", updateThumb);
             window.removeEventListener("resize", updateThumb);
+            window.removeEventListener("resize", updateIsTouch);
             mq.removeEventListener("change", onMq);
         };
     }, []);

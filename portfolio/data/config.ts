@@ -8,26 +8,33 @@ export const siteConfig = {
   affiliation: "Tokyo University of Technology",
   location: "地球",
   avatar: "/images/icon.webp",
+  email: "sean.2005sfsf@gmail.com",
+  siteUrl: "https://s3an.dev",
+  availability: "Enjoying student life",
   socials: [
     {
       name: "GitHub",
       url: "https://github.com/sean9061",
       icon: Github,
+      color: "#6e7681",
     },
     {
       name: "X",
       url: "https://twitter.com/sean_9061",
       icon: SiX,
+      color: "#000000",
     },
     {
       name: "Instagram",
       url: "https://instagram.com/sean_9061.p",
       icon: Instagram,
+      color: "#E1306C",
     },
     {
       name: "Zenn",
       url: "https://zenn.dev/seannozenn",
       icon: SiZenn,
+      color: "#3EA8FF",
     },
   ],
   mainActivities: [
@@ -155,6 +162,38 @@ export const siteConfig = {
       link: "",
       year: "",
       comingSoon: true,
+    },
+  ],
+  photos: [
+    {
+      image: "/images/cards/boat.webp",
+      title: "",
+      location: "Tachikawa Tokyo",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/cherryblossom.webp",
+      title: "",
+      location: "Roppongi Tokyo",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/fireworks.webp",
+      title: "",
+      location: "Nagano",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/stars.webp",
+      title: "",
+      location: "Shikine-jima Tokyo",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/tateshinako.webp",
+      title: "",
+      location: "Nagano",
+      instagramUrl: "",
     },
   ],
   interests: {
