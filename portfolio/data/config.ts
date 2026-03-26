@@ -164,6 +164,38 @@ export const siteConfig = {
       comingSoon: true,
     },
   ],
+  photos: [
+    {
+      image: "/images/cards/boat.webp",
+      title: "",
+      location: "Tachikawa Tokyo",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/cherryblossom.webp",
+      title: "",
+      location: "Roppongi Tokyo",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/fireworks.webp",
+      title: "",
+      location: "Nagano",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/stars.webp",
+      title: "",
+      location: "Shikine-jima Tokyo",
+      instagramUrl: "",
+    },
+    {
+      image: "/images/cards/tateshinako.webp",
+      title: "",
+      location: "Nagano",
+      instagramUrl: "",
+    },
+  ],
   interests: {
     hobbies: [
       { name: "スキー",       icon: Snowflake, image: "/images/hobbies/ski.webp" },

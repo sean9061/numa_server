@@ -4,6 +4,7 @@ import { ContactCard } from "@/components/contact-card";
 import { TechStackCard } from "@/components/tech-stack-card";
 import { ProjectCard } from "@/components/project-card";
 import { InterestsCard } from "@/components/interests-card";
+import { PhotoCard } from "@/components/photo-card";
 import { LoadingProvider } from "@/components/ui/loading-provider";
 import { siteConfig } from "@/data/config";
 
@@ -22,15 +23,18 @@ export default function Home() {
         <ActivitiesCard className="col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2 aspect-auto md:aspect-square h-full" />
 
 
-        {/* Tech Stack: Left (1x1) */}
+        {/* Photo: TechStack左横 (1x1) */}
+        <PhotoCard className="col-span-1 aspect-square" />
+
+        {/* Tech Stack: (1x1) */}
         <TechStackCard className="col-span-1 md:col-span-1 aspect-square" />
 
         {/* Row 3 */}
 
-        {/* Interests: Row 3 Middle (2x1) */}
+        {/* Interests: Row 3 (2x1) */}
         <InterestsCard className="col-span-1 md:col-span-2 lg:col-span-2 aspect-auto md:aspect-[2/1]" />
 
-        {/* Contact: Row 3 Last (1x1) */}
+        {/* Contact: Last (1x1) */}
         <ContactCard className="col-span-1 aspect-square" />
       </div>
 
