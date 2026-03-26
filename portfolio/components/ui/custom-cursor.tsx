@@ -44,11 +44,35 @@ export function CustomCursor() {
         setIsTouch(window.matchMedia("(pointer: coarse)").matches);
     }, []);
 
+    const [isHovering, setIsHovering] = useState(false);
+
+    useEffect(() => {
+        const onEnter = (e: MouseEvent) => {
+            if ((e.target as Element).closest("a, button, [role='button']")) setIsHovering(true);
+        };
+        const onLeave = (e: MouseEvent) => {
+            if ((e.target as Element).closest("a, button, [role='button']")) setIsHovering(false);
+        };
+        window.addEventListener("mouseover", onEnter);
+        window.addEventListener("mouseout", onLeave);
+        return () => {
+            window.removeEventListener("mouseover", onEnter);
+            window.removeEventListener("mouseout", onLeave);
+        };
+    }, []);
+
     const mouseX = useMotionValue(-100);
     const mouseY = useMotionValue(-100);
 
     const x = mouseX;
     const y = mouseY;
+
+    const scaleValue = useMotionValue(1);
+    const scale = useSpring(scaleValue, { stiffness: 300, damping: 25 });
+
+    useEffect(() => {
+        scaleValue.set(isHovering ? 0.5 : 1);
+    }, [isHovering, scaleValue]);
 
     // Shape blend (0 = circle, 1 = teardrop)
     const blend = useMotionValue(0);
@@ -110,6 +134,7 @@ export function CustomCursor() {
                 pointerEvents: "none",
                 zIndex: 99999,
                 rotate: rotateSpring,
+                scale,
                 overflow: "visible",
             }}
         >
