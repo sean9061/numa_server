@@ -14,15 +14,33 @@ Internet
 │   Nginx Proxy Manager       │  ← リバースプロキシ・SSL終端
 │   (proxy/compose.yaml)      │
 │   Admin UI: Port 81         │
-└────────────┬────────────────┘
-             │ proxy_net (Docker外部ネットワーク)
-             ▼
-┌─────────────────────────────┐
-│   Portfolio (Next.js)       │  ← ポートフォリオサイト
-│   Internal: Port 3000       │
-│   (portfolio/compose.yaml)  │
-└─────────────────────────────┘
+└──────┬──────────────────────┘
+       │ proxy_net (Docker外部ネットワーク)
+       ├──────────────────────────────────┐
+       ▼                                  ▼
+┌──────────────────┐           ┌──────────────────────┐
+│  Portfolio       │           │  Ollama (Local LLM)  │
+│  (Next.js)       │           │  ollama.s3an.dev     │
+│  Internal: :3000 │           │  Internal: :11434    │
+└──────────────────┘           │  GPU: GTX 1660 Super │
+                                └──────────────────────┘
 ```
+
+---
+
+## ハードウェア構成
+
+| 項目 | 内容 |
+| --- | --- |
+| サーバー名 | numa_01 |
+| OS | Ubuntu 22.04 LTS |
+| CPU | Intel Core i5 12400F |
+| GPU | NVIDIA GTX 1660 Super |
+| メモリ | 16GB DDR5 |
+| マザーボード | MAG Z790 TOMAHAWK MAX WIFI |
+| ストレージ (OS) | SATA SSD 512GB |
+| ストレージ (Data) | HDD 500GB x4 |
+| 電源 | 650W Bronze  |
 
 ---
 
@@ -43,7 +61,35 @@ Internet
 - `default` ブリッジ: `app` コンテナ ↔ `db` コンテナ間の通信専用
 - `proxy_net` (外部): 他サービスへのトラフィックルーティング
 
-### 2. Portfolio (`portfolio/`)
+### 2. Ollama (`ollama_server/`)
+
+| 項目 | 内容 |
+|------|------|
+| イメージ | `ollama/ollama:latest` |
+| 役割 | Local LLM サーバー (OpenAI互換API) |
+| エンドポイント | `https://ollama.s3an.dev` (外部) / `ollama:11434` (内部) |
+| GPU | NVIDIA GTX 1660 Super (VRAM 6GB) |
+| 推奨モデル | `qwen2.5:7b`, `llama3.2:3b` (Q4量子化) |
+| 認証 | Bearer Token (Nginx カスタム設定で制御) |
+| データ永続化 | `./data` (モデルファイル) |
+| ネットワーク | `proxy_net` |
+
+**セキュリティ構成:**
+- HTTPS (Let's Encrypt) by Nginx Proxy Manager
+- Bearer Token 認証 (`nginx-custom.conf` をNPMのAdvancedタブに設定)
+- Port 11434 はホストに非公開 (`proxy_net` 経由のみ)
+
+**クライアント別接続設定:**
+
+| 用途 | 設定 |
+|---|---|
+| vibe-local / OpenAI互換ツール | Base URL: `https://ollama.s3an.dev/v1` / API Key: `<your-key>` |
+| Discord Bot (サーバー内) | `http://ollama:11434` (proxy_net経由, 認証不要) |
+| curl テスト | `curl -H "Authorization: Bearer <key>" https://ollama.s3an.dev/api/tags` |
+
+---
+
+### 3. Portfolio (`portfolio/`)
 
 | 項目 | 内容 |
 |------|------|
@@ -60,7 +106,7 @@ Internet
 
 | ネットワーク | 種別 | 接続サービス | 用途 |
 |---|---|---|---|
-| `proxy_net` | 外部 (手動作成) | Nginx Proxy Manager, Portfolio | サービス間通信・プロキシルーティング |
+| `proxy_net` | 外部 (手動作成) | Nginx Proxy Manager, Portfolio, Ollama | サービス間通信・プロキシルーティング |
 | `default` | 内部ブリッジ (自動) | Nginx app ↔ MariaDB | DBアクセス専用 |
 
 **ポート一覧:**
@@ -72,6 +118,7 @@ Internet
 | Nginx Proxy Manager | 81 | 81 | HTTP | 管理パネル |
 | MariaDB | 3306 | 非公開 | MySQL | DB内部通信 |
 | Portfolio | 3000 | 非公開 (本番) / 3000 (開発) | HTTP | Next.jsアプリ |
+| Ollama | 11434 | 非公開 | HTTP | LLM API (proxy_net経由) |
 
 ---
 
@@ -95,6 +142,12 @@ numa_server/
 │   ├── app/                  # Next.js App Router
 │   ├── components/           # Reactコンポーネント
 │   └── public/               # 静的アセット (画像・3Dモデル・動画)
+├── ollama_server/            # Ollama Local LLM
+│   ├── compose.yaml          # Ollamaサービス定義 (GPU passthrough)
+│   ├── nginx-custom.conf     # NPM Advanced タブ用カスタム設定 (Bearer認証)
+│   ├── .env                  # APIキー (gitignore対象)
+│   ├── .env.example          # テンプレート
+│   └── data/                 # モデルデータ永続化 (gitignore対象)
 ├── architecture.svg          # 構成図
 ├── CLAUDE.md                 # Claude Code向けガイド
 └── README.md                 # このファイル
@@ -110,6 +163,7 @@ numa_server/
 | リバースプロキシ | Nginx Proxy Manager |
 | SSL/TLS | Let's Encrypt (Nginx Proxy Manager経由) |
 | データベース | MariaDB (Nginx PM用) |
+| LLM ランタイム | Ollama (GPU対応) |
 | フロントエンド | Next.js 16, React 19, TypeScript |
 | スタイリング | Tailwind CSS v4 |
 | 3Dグラフィクス | Three.js, React Three Fiber |
@@ -157,6 +211,87 @@ npm run dev      # 開発サーバー起動
 npm run build    # 本番ビルド
 npm run start    # 本番サーバー起動
 npm run lint     # ESLint実行
+```
+
+---
+
+## Ollama セットアップ (Ollama Setup)
+
+### 1. ホスト側の前提条件 (初回のみ)
+
+```bash
+# NVIDIA Container Toolkit のインストール (Ubuntu)
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+  | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+  | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+  | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt update && sudo apt install -y nvidia-container-toolkit
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
+# GPU確認
+docker run --rm --gpus all nvidia/cuda:12.0-base-ubuntu22.04 nvidia-smi
+```
+
+### 2. Ollama 起動
+
+```bash
+cd ollama_server
+cp .env.example .env
+
+# APIキーを生成して .env に設定
+openssl rand -hex 32   # 出力をコピーして .env の OLLAMA_API_KEY= に貼り付け
+
+docker compose up -d
+
+# モデルのダウンロード (初回)
+docker exec -it ollama ollama pull qwen2.5:7b
+# または軽量モデル
+docker exec -it ollama ollama pull llama3.2:3b
+```
+
+### 3. Nginx Proxy Manager の設定
+
+管理UI (http://localhost:81) で Proxy Host を追加:
+
+| 設定 | 値 |
+|---|---|
+| Domain Names | `ollama.s3an.dev` |
+| Scheme | `http` |
+| Forward Hostname | `ollama` |
+| Forward Port | `11434` |
+| SSL | Let's Encrypt (Force SSL ON) |
+
+「Advanced」タブを開き、`nginx-custom.conf` の内容を貼り付け、`YOUR_OLLAMA_API_KEY_HERE` を `.env` の `OLLAMA_API_KEY` の値で置換する。
+
+### 4. 動作確認
+
+```bash
+# モデル一覧 (認証テスト)
+curl -H "Authorization: Bearer <your-api-key>" https://ollama.s3an.dev/api/tags
+
+# 推論テスト
+curl -H "Authorization: Bearer <your-api-key>" \
+     -H "Content-Type: application/json" \
+     -d '{"model":"qwen2.5:7b","prompt":"Hello!","stream":false}' \
+     https://ollama.s3an.dev/api/generate
+```
+
+### 5. vibe-local / OpenAI 互換ツールの接続設定
+
+```
+Base URL : https://ollama.s3an.dev/v1
+API Key  : <OLLAMA_API_KEY の値>
+Model    : qwen2.5:7b  (または pull したモデル名)
+```
+
+### 6. Discord Bot (サーバー内から接続)
+
+サーバー上で動作する Discord Bot は `proxy_net` 経由で直接アクセス可能 (認証不要):
+
+```
+Ollama API URL: http://ollama:11434
 ```
 
 ---
