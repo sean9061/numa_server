@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" font-family="'SF Mono', 'Fira Code', monospace" font-size="13">
+
+  <!-- Background -->
+  <rect width="900" height="620" fill="#0f1117" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="38" text-anchor="middle" fill="#e2e8f0" font-size="18" font-weight="bold" letter-spacing="1">Numa Server — Architecture</text>
+
+  <!-- ===== INTERNET ===== -->
+  <rect x="330" y="60" width="240" height="52" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+  <text x="450" y="82" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="bold" letter-spacing="1">INTERNET</text>
+  <text x="450" y="100" text-anchor="middle" fill="#64748b" font-size="11">External Clients</text>
+
+  <!-- Arrow: Internet → Proxy -->
+  <line x1="450" y1="112" x2="450" y2="148" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="468" y="134" fill="#64748b" font-size="10">Port 80 / 443</text>
+  <polygon points="450,148 445,140 455,140" fill="#334155"/>
+
+  <!-- ===== DOCKER HOST ===== -->
+  <rect x="60" y="155" width="780" height="420" rx="10" fill="#0d1526" stroke="#1e3a5f" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="86" y="177" fill="#1e3a5f" font-size="11" font-weight="bold" letter-spacing="1">DOCKER HOST</text>
+
+  <!-- ===== proxy_net network band ===== -->
+  <rect x="80" y="188" width="740" height="188" rx="8" fill="#0a1628" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="100" y="208" fill="#1d4ed8" font-size="10" font-weight="bold" letter-spacing="1">proxy_net  (external Docker network)</text>
+
+  <!-- ===== NGINX PROXY MANAGER ===== -->
+  <rect x="100" y="218" width="300" height="140" rx="8" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+  <rect x="100" y="218" width="300" height="28" rx="8" fill="#1d4ed8"/>
+  <rect x="100" y="234" width="300" height="12" rx="0" fill="#1d4ed8"/>
+  <text x="250" y="237" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">Nginx Proxy Manager</text>
+
+  <text x="116" y="265" fill="#94a3b8" font-size="10" font-weight="bold">Image:</text>
+  <text x="160" y="265" fill="#64748b" font-size="10">jc21/nginx-proxy-manager:latest</text>
+  <text x="116" y="282" fill="#94a3b8" font-size="10" font-weight="bold">Container:</text>
+  <text x="172" y="282" fill="#64748b" font-size="10">proxy-app</text>
+
+  <!-- Ports -->
+  <rect x="116" y="292" width="56" height="20" rx="4" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+  <text x="144" y="306" text-anchor="middle" fill="#3b82f6" font-size="10">:80 HTTP</text>
+
+  <rect x="178" y="292" width="68" height="20" rx="4" fill="#0f172a" stroke="#3b82f6" stroke-width="1"/>
+  <text x="212" y="306" text-anchor="middle" fill="#3b82f6" font-size="10">:443 HTTPS</text>
+
+  <rect x="252" y="292" width="68" height="20" rx="4" fill="#0f172a" stroke="#22d3ee" stroke-width="1"/>
+  <text x="286" y="306" text-anchor="middle" fill="#22d3ee" font-size="10">:81 Admin</text>
+
+  <text x="116" y="332" fill="#94a3b8" font-size="10" font-weight="bold">Features:</text>
+  <text x="175" y="332" fill="#64748b" font-size="10">SSL/TLS termination, Domain routing</text>
+  <text x="116" y="348" fill="#64748b" font-size="10">Let's Encrypt auto-renewal</text>
+
+  <!-- ===== PORTFOLIO ===== -->
+  <rect x="460" y="218" width="340" height="140" rx="8" fill="#1e293b" stroke="#8b5cf6" stroke-width="2"/>
+  <rect x="460" y="218" width="340" height="28" rx="8" fill="#6d28d9"/>
+  <rect x="460" y="234" width="340" height="12" rx="0" fill="#6d28d9"/>
+  <text x="630" y="237" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">Portfolio (Next.js)</text>
+
+  <text x="476" y="265" fill="#94a3b8" font-size="10" font-weight="bold">Framework:</text>
+  <text x="540" y="265" fill="#64748b" font-size="10">Next.js 16 / React 19 / TypeScript</text>
+  <text x="476" y="282" fill="#94a3b8" font-size="10" font-weight="bold">Image:</text>
+  <text x="515" y="282" fill="#64748b" font-size="10">node:20-alpine (multi-stage build)</text>
+
+  <rect x="476" y="292" width="100" height="20" rx="4" fill="#0f172a" stroke="#8b5cf6" stroke-width="1"/>
+  <text x="526" y="306" text-anchor="middle" fill="#8b5cf6" font-size="10">:3000 (internal)</text>
+
+  <text x="476" y="332" fill="#94a3b8" font-size="10" font-weight="bold">Styling:</text>
+  <text x="524" y="332" fill="#64748b" font-size="10">Tailwind CSS v4</text>
+  <text x="476" y="348" fill="#94a3b8" font-size="10" font-weight="bold">3D / Anim:</text>
+  <text x="536" y="348" fill="#64748b" font-size="10">Three.js · React Three Fiber · Framer Motion</text>
+
+  <!-- Arrow proxy → portfolio (inside proxy_net band) -->
+  <line x1="400" y1="288" x2="456" y2="288" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <polygon points="456,288 448,284 448,292" fill="#1d4ed8"/>
+  <text x="428" y="282" text-anchor="middle" fill="#1d4ed8" font-size="9">proxy_net</text>
+
+  <!-- ===== default network (internal) ===== -->
+  <rect x="80" y="392" width="380" height="148" rx="8" fill="#0a1a12" stroke="#166534" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="100" y="411" fill="#166534" font-size="10" font-weight="bold" letter-spacing="1">default  (internal bridge network)</text>
+
+  <!-- MariaDB -->
+  <rect x="100" y="420" width="220" height="105" rx="8" fill="#1e293b" stroke="#22c55e" stroke-width="2"/>
+  <rect x="100" y="420" width="220" height="28" rx="8" fill="#166534"/>
+  <rect x="100" y="436" width="220" height="12" rx="0" fill="#166534"/>
+  <text x="210" y="439" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="bold">MariaDB</text>
+
+  <text x="116" y="467" fill="#94a3b8" font-size="10" font-weight="bold">Image:</text>
+  <text x="156" y="467" fill="#64748b" font-size="10">jc21/mariadb-aria:latest</text>
+  <text x="116" y="484" fill="#94a3b8" font-size="10" font-weight="bold">Database:</text>
+  <text x="165" y="484" fill="#64748b" font-size="10">npm</text>
+
+  <rect x="116" y="493" width="88" height="20" rx="4" fill="#0f172a" stroke="#22c55e" stroke-width="1"/>
+  <text x="160" y="507" text-anchor="middle" fill="#22c55e" font-size="10">:3306 (internal)</text>
+
+  <!-- Arrow Nginx ↔ MariaDB -->
+  <line x1="250" y1="358" x2="250" y2="418" stroke="#166534" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <polygon points="250,418 245,410 255,410" fill="#166534"/>
+  <text x="262" y="392" fill="#166534" font-size="9">DB access</text>
+
+  <!-- ===== Volumes section ===== -->
+  <rect x="470" y="392" width="350" height="148" rx="8" fill="#1a1006" stroke="#92400e" stroke-width="1" stroke-dasharray="5,3"/>
+  <text x="490" y="411" fill="#92400e" font-size="10" font-weight="bold" letter-spacing="1">VOLUMES  (persistent storage)</text>
+
+  <text x="490" y="432" fill="#b45309" font-size="10" font-weight="bold">proxy/</text>
+  <text x="490" y="448" fill="#64748b" font-size="10">./data       → Nginx configs, SSL certs, logs</text>
+  <text x="490" y="464" fill="#64748b" font-size="10">./letsencrypt → Let's Encrypt certificates</text>
+  <text x="490" y="480" fill="#64748b" font-size="10">./mysql      → MariaDB data files</text>
+
+  <text x="490" y="500" fill="#b45309" font-size="10" font-weight="bold">portfolio/</text>
+  <text x="490" y="516" fill="#64748b" font-size="10">public/images, models, videos</text>
+  <text x="490" y="532" fill="#64748b" font-size="10">.next/standalone (generated)</text>
+
+  <!-- ===== Legend ===== -->
+  <rect x="80" y="555" width="740" height="44" rx="6" fill="#111827" stroke="#1f2937" stroke-width="1"/>
+  <text x="100" y="572" fill="#475569" font-size="10" font-weight="bold">LEGEND</text>
+
+  <rect x="160" y="562" width="10" height="10" rx="2" fill="#1d4ed8"/>
+  <text x="175" y="572" fill="#64748b" font-size="10">proxy_net</text>
+
+  <rect x="255" y="562" width="10" height="10" rx="2" fill="#166534"/>
+  <text x="270" y="572" fill="#64748b" font-size="10">default (internal)</text>
+
+  <rect x="390" y="562" width="10" height="10" rx="2" fill="#6d28d9"/>
+  <text x="405" y="572" fill="#64748b" font-size="10">Portfolio service</text>
+
+  <rect x="510" y="562" width="10" height="10" rx="2" fill="#1d4ed8"/>
+  <text x="525" y="572" fill="#64748b" font-size="10">Proxy service</text>
+
+  <rect x="615" y="562" width="10" height="10" rx="2" fill="#166534"/>
+  <text x="630" y="572" fill="#64748b" font-size="10">Database</text>
+
+  <!-- Port labels on top (host ports) -->
+  <text x="100" y="589" fill="#475569" font-size="9">Host ports exposed: 80, 443 (public)  ·  81 (admin)  ·  3000 (dev only via compose.override.yaml)</text>
+
+</svg>
