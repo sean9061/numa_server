@@ -10,20 +10,19 @@
 Internet
    │
    ▼ Port 80/443
-┌─────────────────────────────┐
-│   Nginx Proxy Manager       │  ← リバースプロキシ・SSL終端
-│   (proxy/compose.yaml)      │
-│   Admin UI: Port 81         │
-└──────┬──────────────────────┘
-       │ proxy_net (Docker外部ネットワーク)
-       ├──────────────────────────────────┐
-       ▼                                  ▼
-┌──────────────────┐           ┌──────────────────────┐
-│  Portfolio       │           │  Ollama (Local LLM)  │
-│  (Next.js)       │           │  ollama.s3an.dev     │
-│  Internal: :3000 │           │  Internal: :11434    │
-└──────────────────┘           │  GPU: GTX 1660 Super │
-                                └──────────────────────┘
+┌──────────────────────────────────────────────┐
+│   Nginx Proxy Manager                        │  ← リバースプロキシ・SSL終端
+│   Admin UI: Port 81 (LAN内のみ)             │
+└────────────┬──────────────────┬──────────────┘
+             │ proxy_net        │ ollama_net
+             ▼                  ▼
+┌─────────────────┐   ┌──────────────────────┐
+│  Portfolio      │   │  Ollama (Local LLM)  │
+│  (Next.js)      │   │  ollama.s3an.dev     │
+│  Internal: :3000│   │  Internal: :11434    │
+└─────────────────┘   │  GPU: GTX 1660 Super │
+                       └──────────────────────┘
+  ※ PortfolioはOllamaに到達不可 (ネットワーク分離)
 ```
 
 ---
@@ -72,19 +71,23 @@ Internet
 | 推奨モデル | `qwen2.5:7b`, `llama3.2:3b` (Q4量子化) |
 | 認証 | Bearer Token (Nginx カスタム設定で制御) |
 | データ永続化 | `./data` (モデルファイル) |
-| ネットワーク | `proxy_net` |
+| ネットワーク | `ollama_net` (portfolio等から隔離) |
 
 **セキュリティ構成:**
 - HTTPS (Let's Encrypt) by Nginx Proxy Manager
 - Bearer Token 認証 (`nginx-custom.conf` をNPMのAdvancedタブに設定)
-- Port 11434 はホストに非公開 (`proxy_net` 経由のみ)
+- レートリミット: 20req/min per IP (`proxy/data/nginx/custom/http_ratelimit.conf`)
+- Port 11434 はホストに非公開 (`ollama_net` 経由のみ)
+- `ollama_net` で分離 — Portfolio等の他コンテナからアクセス不可
+- `no-new-privileges` — コンテナ内での権限昇格を禁止
+- CORSオリジン: `https://ollama.s3an.dev` のみ許可
 
 **クライアント別接続設定:**
 
 | 用途 | 設定 |
 |---|---|
 | vibe-local / OpenAI互換ツール | Base URL: `https://ollama.s3an.dev/v1` / API Key: `<your-key>` |
-| Discord Bot (サーバー内) | `http://ollama:11434` (proxy_net経由, 認証不要) |
+| Discord Bot (サーバー内) | `http://ollama:11434` (ollama_net接続必須, 認証不要) |
 | curl テスト | `curl -H "Authorization: Bearer <key>" https://ollama.s3an.dev/api/tags` |
 
 ---
@@ -106,7 +109,8 @@ Internet
 
 | ネットワーク | 種別 | 接続サービス | 用途 |
 |---|---|---|---|
-| `proxy_net` | 外部 (手動作成) | Nginx Proxy Manager, Portfolio, Ollama | サービス間通信・プロキシルーティング |
+| `proxy_net` | 外部 (手動作成) | Nginx Proxy Manager, Portfolio | サービス間通信・プロキシルーティング |
+| `ollama_net` | 外部 (手動作成) | Nginx Proxy Manager, Ollama | Ollama専用経路 (他サービスから隔離) |
 | `default` | 内部ブリッジ (自動) | Nginx app ↔ MariaDB | DBアクセス専用 |
 
 **ポート一覧:**
@@ -118,7 +122,7 @@ Internet
 | Nginx Proxy Manager | 81 | 81 | HTTP | 管理パネル |
 | MariaDB | 3306 | 非公開 | MySQL | DB内部通信 |
 | Portfolio | 3000 | 非公開 (本番) / 3000 (開発) | HTTP | Next.jsアプリ |
-| Ollama | 11434 | 非公開 | HTTP | LLM API (proxy_net経由) |
+| Ollama | 11434 | 非公開 | HTTP | LLM API (ollama_net経由) |
 
 ---
 
@@ -177,6 +181,7 @@ numa_server/
 ```bash
 # 1. 共有Dockerネットワークを作成 (初回のみ)
 docker network create proxy_net
+docker network create ollama_net  # Ollama専用ネットワーク
 
 # 2. プロキシを起動 (最初に起動必須)
 cd proxy
@@ -265,6 +270,15 @@ docker exec -it ollama ollama pull llama3.2:3b
 
 「Advanced」タブを開き、`nginx-custom.conf` の内容を貼り付け、`YOUR_OLLAMA_API_KEY_HERE` を `.env` の `OLLAMA_API_KEY` の値で置換する。
 
+**レートリミット設定ファイルをサーバーに作成 (初回のみ):**
+```bash
+mkdir -p /opt/app/numa_server/proxy/data/nginx/custom
+cat > /opt/app/numa_server/proxy/data/nginx/custom/http_ratelimit.conf << 'EOF'
+limit_req_zone $binary_remote_addr zone=ollama_zone:10m rate=20r/m;
+EOF
+cd /opt/app/numa_server/proxy && docker compose restart
+```
+
 ### 4. 動作確認
 
 ```bash
@@ -288,10 +302,17 @@ Model    : qwen2.5:7b  (または pull したモデル名)
 
 ### 6. Discord Bot (サーバー内から接続)
 
-サーバー上で動作する Discord Bot は `proxy_net` 経由で直接アクセス可能 (認証不要):
+サーバー上で動作する Discord Bot は `ollama_net` に接続することで直接アクセス可能 (認証不要):
 
 ```
 Ollama API URL: http://ollama:11434
+```
+
+Discord Bot の `compose.yaml` に以下を追加する:
+```yaml
+networks:
+  ollama_net:
+    external: true
 ```
 
 ---
@@ -314,15 +335,14 @@ Ollama API URL: http://ollama:11434
 ## トラフィックフロー (Traffic Flow)
 
 ```
-外部リクエスト (example.com)
+外部リクエスト
          │
          ▼ Port 80/443
   Nginx Proxy Manager
   (ドメイン名でルーティング判定)
          │
-         ▼ proxy_net
-  対象サービスコンテナ (例: portfolio:3000)
+         ├─── s3an.dev ──────▶ proxy_net ──▶ portfolio:3000
          │
-         ▼
-  アプリケーション処理・レスポンス
+         └─── ollama.s3an.dev ▶ ollama_net ─▶ ollama:11434
+                                  (Bearer認証 + レートリミット)
 ```
