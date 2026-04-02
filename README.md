@@ -76,7 +76,6 @@ Internet
 **セキュリティ構成:**
 - HTTPS (Let's Encrypt) by Nginx Proxy Manager
 - Bearer Token 認証 (`nginx-custom.conf` をNPMのAdvancedタブに設定)
-- レートリミット: 20req/min per IP (`proxy/data/nginx/custom/http_ratelimit.conf`)
 - Port 11434 はホストに非公開 (`ollama_net` 経由のみ)
 - `ollama_net` で分離 — Portfolio等の他コンテナからアクセス不可
 - `no-new-privileges` — コンテナ内での権限昇格を禁止
@@ -270,14 +269,6 @@ docker exec -it ollama ollama pull llama3.2:3b
 
 「Advanced」タブを開き、`nginx-custom.conf` の内容を貼り付け、`YOUR_OLLAMA_API_KEY_HERE` を `.env` の `OLLAMA_API_KEY` の値で置換する。
 
-**レートリミット設定ファイルをサーバーに作成 (初回のみ):**
-```bash
-mkdir -p /opt/app/numa_server/proxy/data/nginx/custom
-cat > /opt/app/numa_server/proxy/data/nginx/custom/http_ratelimit.conf << 'EOF'
-limit_req_zone $binary_remote_addr zone=ollama_zone:10m rate=20r/m;
-EOF
-cd /opt/app/numa_server/proxy && docker compose restart
-```
 
 ### 4. 動作確認
 
