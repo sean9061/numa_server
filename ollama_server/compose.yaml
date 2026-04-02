@@ -4,20 +4,22 @@ services:
     container_name: ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
-      - OLLAMA_ORIGINS=*          # プロキシ経由のCORSを許可
+      - OLLAMA_ORIGINS=https://ollama.s3an.dev  # 許可オリジンを限定 (* から変更)
     volumes:
-      - ./data:/root/.ollama      # モデルデータ永続化
+      - ./data:/root/.ollama                    # モデルデータ永続化
+    security_opt:
+      - no-new-privileges:true                  # 権限昇格を禁止
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [gpu]  # GTX 1660 Super GPU passthrough
+              capabilities: [gpu]               # GTX 1660 Super GPU passthrough
     networks:
-      - proxy_net
+      - ollama_net                              # proxy_net から分離 (portfolio等からアクセス不可)
     restart: always
 
 networks:
-  proxy_net:
+  ollama_net:
     external: true

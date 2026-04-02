@@ -4,9 +4,9 @@ services:
     restart: unless-stopped
     ports:
       # These ports are in format <host-port>:<container-port>
-      - '80:80' # Public HTTP Port
-      - '443:443' # Public HTTPS Port
-      - '81:81' # Admin Web Port
+      - '80:80'    # Public HTTP Port
+      - '443:443'  # Public HTTPS Port
+      - '81:81'    # Admin UI: LAN内からのみアクセス可 (ルーターでポート81は非フォワード)
     environment:
       # Mysql/Maria connection parameters:
       DB_MYSQL_HOST: "db"
@@ -22,6 +22,7 @@ services:
     networks:
       - default
       - proxy_net
+      - ollama_net
 
   db:
     image: 'jc21/mariadb-aria:latest'
@@ -36,4 +37,6 @@ services:
 
 networks:
   proxy_net:
+    external: true
+  ollama_net:
     external: true
