@@ -230,8 +230,8 @@ sudo apt update && sudo apt install -y nvidia-container-toolkit
 sudo nvidia-ctk runtime configure --runtime=docker
 sudo systemctl restart docker
 
-# GPU確認
-docker run --rm --gpus all nvidia/cuda:12.0-base-ubuntu22.04 nvidia-smi
+# GPU確認 (ホスト)
+nvidia-smi
 ```
 
 ### 2. Ollama 起動
@@ -246,7 +246,7 @@ openssl rand -hex 32   # 出力をコピーして .env の OLLAMA_API_KEY= に�
 docker compose up -d
 
 # モデルのダウンロード (初回)
-docker exec -it ollama ollama pull qwen2.5:7b
+docker exec -it ollama ollama pull qwen3.5:9b
 # または軽量モデル
 docker exec -it ollama ollama pull llama3.2:3b
 ```
@@ -274,7 +274,7 @@ curl -H "Authorization: Bearer <your-api-key>" https://ollama.s3an.dev/api/tags
 # 推論テスト
 curl -H "Authorization: Bearer <your-api-key>" \
      -H "Content-Type: application/json" \
-     -d '{"model":"qwen2.5:7b","prompt":"Hello!","stream":false}' \
+     -d '{"model":"qwen3.5:9b","prompt":"Hello!","stream":false}' \
      https://ollama.s3an.dev/api/generate
 ```
 
