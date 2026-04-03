@@ -10,18 +10,19 @@
 Internet
    │
    ▼ Port 80/443
-┌──────────────────────────────────────────────┐
-│   Nginx Proxy Manager                        │  ← リバースプロキシ・SSL終端
-│   Admin UI: Port 81 (LAN内のみ)             │
-└────────────┬──────────────────┬──────────────┘
-             │ proxy_net        │ ollama_net
-             ▼                  ▼
-┌─────────────────┐   ┌──────────────────────┐
-│  Portfolio      │   │  Ollama (Local LLM)  │
-│  (Next.js)      │   │  ollama.s3an.dev     │
-│  Internal: :3000│   │  Internal: :11434    │
-└─────────────────┘   │  GPU: GTX 1660 Super │
-                       └──────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│   Nginx Proxy Manager                                │  ← リバースプロキシ・SSL終端
+│   Admin UI: Port 81 (LAN内のみ)                     │
+└──────┬────────────────────┬────────────────┬─────────┘
+       │ proxy_net          │ proxy_net      │ ollama_net
+       ▼                    ▼                ▼
+┌────────────────┐  ┌──────────────┐  ┌────────────────────┐
+│  Portfolio     │  │  Open WebUI  │  │  Ollama (API only) │
+│  (Next.js)     │  │  chat.s3an.dev│  │  ollama.s3an.dev  │
+│  :3000         │  │  :8080       │  │  :11434            │
+└────────────────┘  └──────┬───────┘  └────────────────────┘
+                           │ ollama_net (内部)        ↑
+                           └─────────────────────────┘
   ※ PortfolioはOllamaに到達不可 (ネットワーク分離)
 ```
 
@@ -60,7 +61,20 @@ Internet
 - `default` ブリッジ: `app` コンテナ ↔ `db` コンテナ間の通信専用
 - `proxy_net` (外部): 他サービスへのトラフィックルーティング
 
-### 2. Ollama (`ollama_server/`)
+### 2. Open WebUI (`ollama_server/`)
+
+| 項目 | 内容 |
+|------|------|
+| イメージ | `ghcr.io/open-webui/open-webui:main` |
+| 役割 | Ollama用Web UI (チャット・モデル管理) |
+| エンドポイント | `https://chat.s3an.dev` |
+| 認証 | Open WebUI内蔵の認証機能 |
+| データ永続化 | `./webui-data` (ユーザー・履歴・設定) |
+| ネットワーク | `proxy_net` (NPMから) + `ollama_net` (Ollamaへ) |
+
+---
+
+### 3. Ollama (`ollama_server/`)
 
 | 項目 | 内容 |
 |------|------|
@@ -109,7 +123,7 @@ Internet
 | ネットワーク | 種別 | 接続サービス | 用途 |
 |---|---|---|---|
 | `proxy_net` | 外部 (手動作成) | Nginx Proxy Manager, Portfolio | サービス間通信・プロキシルーティング |
-| `ollama_net` | 外部 (手動作成) | Nginx Proxy Manager, Ollama | Ollama専用経路 (他サービスから隔離) |
+| `ollama_net` | 外部 (手動作成) | Nginx Proxy Manager, Ollama, Open WebUI | Ollama専用経路 (Portfolio等から隔離) |
 | `default` | 内部ブリッジ (自動) | Nginx app ↔ MariaDB | DBアクセス専用 |
 
 **ポート一覧:**
@@ -121,6 +135,7 @@ Internet
 | Nginx Proxy Manager | 81 | 81 | HTTP | 管理パネル |
 | MariaDB | 3306 | 非公開 | MySQL | DB内部通信 |
 | Portfolio | 3000 | 非公開 (本番) / 3000 (開発) | HTTP | Next.jsアプリ |
+| Open WebUI | 8080 | 非公開 | HTTP | Web UI (proxy_net経由) |
 | Ollama | 11434 | 非公開 | HTTP | LLM API (ollama_net経由) |
 
 ---
@@ -145,12 +160,14 @@ numa_server/
 │   ├── app/                  # Next.js App Router
 │   ├── components/           # Reactコンポーネント
 │   └── public/               # 静的アセット (画像・3Dモデル・動画)
-├── ollama_server/            # Ollama Local LLM
-│   ├── compose.yaml          # Ollamaサービス定義 (GPU passthrough)
-│   ├── nginx-custom.conf     # NPM Advanced タブ用カスタム設定 (Bearer認証)
-│   ├── .env                  # APIキー (gitignore対象)
+├── ollama_server/            # Ollama + Open WebUI
+│   ├── compose.yaml          # Ollama + Open WebUI サービス定義
+│   ├── nginx-custom.conf     # NPM Advanced タブ用 (ollama.s3an.dev / Bearer認証)
+│   ├── nginx-webui.conf      # NPM Advanced タブ用 (chat.s3an.dev / WebSocket対応)
+│   ├── .env                  # APIキー・シークレット (gitignore対象)
 │   ├── .env.example          # テンプレート
-│   └── data/                 # モデルデータ永続化 (gitignore対象)
+│   ├── data/                 # Ollamaモデルデータ (gitignore対象)
+│   └── webui-data/           # Open WebUIデータ (gitignore対象)
 ├── architecture.svg          # 構成図
 ├── CLAUDE.md                 # Claude Code向けガイド
 └── README.md                 # このファイル
@@ -238,14 +255,15 @@ sudo systemctl restart docker
 nvidia-smi
 ```
 
-### 2. Ollama 起動
+### 2. Ollama + Open WebUI 起動
 
 ```bash
 cd ollama_server
 cp .env.example .env
 
-# APIキーを生成して .env に設定
-openssl rand -hex 32   # 出力をコピーして .env の OLLAMA_API_KEY= に貼り付け
+# 2つのキーを生成して .env に設定
+openssl rand -hex 32   # → OLLAMA_API_KEY に貼り付け
+openssl rand -hex 32   # → WEBUI_SECRET_KEY に貼り付け
 
 docker compose up -d
 
@@ -257,17 +275,30 @@ docker exec -it ollama ollama pull llama3.2:3b
 
 ### 3. Nginx Proxy Manager の設定
 
-管理UI (http://localhost:81) で Proxy Host を追加:
+管理UI (http://localhost:81) で Proxy Host を**2つ**追加:
+
+**① ollama.s3an.dev (API直接アクセス用)**
 
 | 設定 | 値 |
 |---|---|
 | Domain Names | `ollama.s3an.dev` |
-| Scheme | `http` |
 | Forward Hostname | `ollama` |
 | Forward Port | `11434` |
 | SSL | Let's Encrypt (Force SSL ON) |
 
-「Advanced」タブを開き、`nginx-custom.conf` の内容を貼り付け、`YOUR_OLLAMA_API_KEY_HERE` を `.env` の `OLLAMA_API_KEY` の値で置換する。
+Advanced タブ: `nginx-custom.conf` の内容を貼り付け、`YOUR_OLLAMA_API_KEY_HERE` を `.env` の `OLLAMA_API_KEY` の値で置換する。
+
+**② chat.s3an.dev (Open WebUI)**
+
+| 設定 | 値 |
+|---|---|
+| Domain Names | `chat.s3an.dev` |
+| Forward Hostname | `open-webui` |
+| Forward Port | `8080` |
+| SSL | Let's Encrypt (Force SSL ON) |
+| WebSockets Support | ON |
+
+Advanced タブ: `nginx-webui.conf` の内容をそのまま貼り付ける。
 
 
 ### 4. 動作確認
@@ -334,6 +365,8 @@ networks:
          │
          ├─── s3an.dev ──────▶ proxy_net ──▶ portfolio:3000
          │
+         ├─── chat.s3an.dev ──▶ proxy_net ──▶ open-webui:8080 ─▶ ollama:11434
+         │                                    (Open WebUI認証)    (ollama_net内部)
          └─── ollama.s3an.dev ▶ ollama_net ─▶ ollama:11434
-                                  (Bearer認証 + レートリミット)
+                                  (Bearer認証)
 ```

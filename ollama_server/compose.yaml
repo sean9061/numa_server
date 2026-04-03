@@ -4,11 +4,11 @@ services:
     container_name: ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
-      - OLLAMA_ORIGINS=https://ollama.s3an.dev  # 許可オリジンを限定 (* から変更)
+      - OLLAMA_ORIGINS=https://ollama.s3an.dev,https://chat.s3an.dev
     volumes:
       - ./data:/root/.ollama                    # モデルデータ永続化
     security_opt:
-      - no-new-privileges:true                  # 権限昇格を禁止
+      - no-new-privileges:true
     deploy:
       resources:
         reservations:
@@ -17,9 +17,28 @@ services:
               count: 1
               capabilities: [gpu]               # GTX 1660 Super GPU passthrough
     networks:
-      - ollama_net                              # proxy_net から分離 (portfolio等からアクセス不可)
+      - ollama_net
+    restart: always
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434     # ollama_net経由で内部接続
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY}    # セッション暗号化キー
+    volumes:
+      - ./webui-data:/app/backend/data          # ユーザー・履歴・設定の永続化
+    depends_on:
+      - ollama
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ollama_net                              # Ollamaへの接続
+      - proxy_net                               # NPMからのアクセス
     restart: always
 
 networks:
   ollama_net:
+    external: true
+  proxy_net:
     external: true
