@@ -5,6 +5,7 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_ORIGINS=https://ollama.s3an.dev,https://chat.s3an.dev
+      - OLLAMA_FLASH_ATTENTION=1  # KVキャッシュのメモリ使用量を削減
     volumes:
       - ./data:/root/.ollama                    # モデルデータ永続化
     security_opt:
