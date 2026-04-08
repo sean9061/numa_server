@@ -1,4 +1,4 @@
-// ── Auth guard ──────────────────────────────────────────────────────────────
+// ── Auth guard ───────────────────────────────────────────────────────────────
 fetch('/auth/check').then(r => r.json()).then(d => {
   if (!d.authenticated) location.href = '/login.html';
 }).catch(() => { location.href = '/login.html'; });
@@ -10,28 +10,21 @@ async function logout() {
 
 // ── Clock ────────────────────────────────────────────────────────────────────
 function updateClock() {
-  const now = new Date();
   document.getElementById('clock').textContent =
-    now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 }
 setInterval(updateClock, 1000);
 updateClock();
 
 // ── Gauge helpers ─────────────────────────────────────────────────────────────
-const GAUGE_LEN = 204.2; // π × 65 (radius of gauge arc)
+const GAUGE_LEN = 204.2; // π × 65
 
-function setGauge(id, pct) {
+function setGauge(id, pct, defaultColor) {
   const el = document.getElementById(id);
   if (!el) return;
   const p = Math.min(100, Math.max(0, pct ?? 0));
-  const filled = (p / 100) * GAUGE_LEN;
-  el.setAttribute('stroke-dasharray', `${filled.toFixed(1)} ${GAUGE_LEN}`);
-}
-
-function gaugeColor(pct) {
-  if (pct >= 85) return 'var(--red)';
-  if (pct >= 65) return 'var(--amber)';
-  return null; // keep default
+  el.setAttribute('stroke-dasharray', `${((p / 100) * GAUGE_LEN).toFixed(1)} ${GAUGE_LEN}`);
+  el.style.stroke = p >= 85 ? 'var(--red)' : p >= 65 ? 'var(--amber)' : defaultColor;
 }
 
 function colorClass(pct) {
@@ -48,12 +41,17 @@ function setText(id, text, cls) {
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
-function fmtBytes(bytes) {
-  if (bytes == null) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
-  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+function fmtBytes(b) {
+  if (b == null) return '—';
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 ** 2) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
+  return `${(b / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function fmtMB(mb) {
+  if (mb == null) return '—';
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
 }
 
 function fmtBps(bps) {
@@ -63,131 +61,130 @@ function fmtBps(bps) {
   return `${(bps / 1024 ** 2).toFixed(1)} MB/s`;
 }
 
-function fmtUptime(seconds) {
-  if (!seconds) return '—';
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+function fmtUptime(s) {
+  if (!s) return '—';
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
   if (d > 0) return `${d}d ${h}h ${m}m`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
 
-function fmtGb(mb) {
-  if (mb == null) return '—';
-  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
-}
+// ── Chart factory ─────────────────────────────────────────────────────────────
+const HIST = 60;
 
-// ── Chart.js setup ────────────────────────────────────────────────────────────
-const CHART_OPTS = {
+const BASE_OPTS = {
   responsive: true,
   maintainAspectRatio: false,
-  animation: { duration: 300 },
+  animation: false,
   plugins: { legend: { display: false }, tooltip: { enabled: false } },
   scales: {
     x: { display: false },
-    y: {
-      display: true,
-      min: 0,
-      grid: { color: 'rgba(30,45,74,0.6)' },
-      ticks: { color: '#4e6282', font: { size: 10 }, maxTicksLimit: 4,
-               callback: v => fmtBps(v) },
-      border: { display: false },
-    },
+    y: { display: false, min: 0 },
   },
-  elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 1.5 } },
+  elements: { point: { radius: 0 }, line: { tension: 0.4, borderWidth: 1.5 } },
 };
 
-const NET_POINTS = 60;
-const netLabels = Array(NET_POINTS).fill('');
-const rxData    = Array(NET_POINTS).fill(0);
-const txData    = Array(NET_POINTS).fill(0);
+function makeSparkline(canvasId, color, bgColor, maxY = 100) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [{ data: Array(HIST).fill(null), borderColor: color,
+        backgroundColor: bgColor, fill: true }],
+    },
+    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales, y: { display: false, min: 0, max: maxY } } },
+  });
+}
 
-const netChart = new Chart(document.getElementById('net-chart'), {
-  type: 'line',
-  data: {
-    labels: netLabels,
-    datasets: [
-      { data: rxData, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true },
-      { data: txData, borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.08)', fill: true },
-    ],
-  },
-  options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales,
-    y: { ...CHART_OPTS.scales.y, ticks: { ...CHART_OPTS.scales.y.ticks,
-      callback: v => fmtBps(v) } },
-  }},
-});
+function makeNetChart(canvasId) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [
+        { data: Array(HIST).fill(0), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true },
+        { data: Array(HIST).fill(0), borderColor: '#818cf8', backgroundColor: 'rgba(129,140,248,0.08)', fill: true },
+      ],
+    },
+    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
+      y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
+           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 3,
+                    callback: v => fmtBps(v) }, border: { display: false } } } },
+  });
+}
 
-const WEB_POINTS = 60;
-const webLabels = Array(WEB_POINTS).fill('');
-const webData   = Array(WEB_POINTS).fill(0);
-let webRequestCount = 0;
+function makeWebChart(canvasId) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [{ data: Array(HIST).fill(0), borderColor: '#22c55e',
+        backgroundColor: 'rgba(34,197,94,0.08)', fill: true }],
+    },
+    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
+      y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
+           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 3 },
+           border: { display: false } } } },
+  });
+}
 
-const webChart = new Chart(document.getElementById('web-chart'), {
-  type: 'line',
-  data: {
-    labels: webLabels,
-    datasets: [
-      { data: webData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.08)', fill: true },
-    ],
-  },
-  options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales,
-    y: { ...CHART_OPTS.scales.y, ticks: { ...CHART_OPTS.scales.y.ticks,
-      callback: v => `${v}` } },
-  }},
-});
+const cpuChart  = makeSparkline('cpu-chart',  '#3b82f6', 'rgba(59,130,246,0.10)');
+const gpuChart  = makeSparkline('gpu-chart',  '#818cf8', 'rgba(129,140,248,0.10)');
+const ramChart  = makeSparkline('ram-chart',  '#22c55e', 'rgba(34,197,94,0.10)');
+const vramChart = makeSparkline('vram-chart', '#f59e0b', 'rgba(245,158,11,0.10)');
+const netChart  = makeNetChart('net-chart');
+const webChart  = makeWebChart('web-chart');
 
-// Push a value into a rolling chart dataset
-function chartPush(chart, datasetIdx, value) {
-  const ds = chart.data.datasets[datasetIdx];
-  ds.data.shift();
-  ds.data.push(value);
+function sparkPush(chart, value, dsIdx = 0) {
+  chart.data.datasets[dsIdx].data.shift();
+  chart.data.datasets[dsIdx].data.push(value ?? null);
   chart.update('none');
 }
 
 // ── Metrics update ────────────────────────────────────────────────────────────
 function updateMetrics(d) {
-  // Uptime
   if (d.uptime != null) setText('h-uptime', fmtUptime(d.uptime));
 
   // CPU
   if (d.cpu) {
-    const pct = d.cpu.usage ?? 0;
-    setGauge('cpu-gauge', pct);
-    const c = gaugeColor(pct);
-    if (c) document.getElementById('cpu-gauge').style.stroke = c;
-    else document.getElementById('cpu-gauge').style.stroke = 'var(--blue)';
-    setText('cpu-pct', `${pct}%`, colorClass(pct));
-    setText('cpu-temp', d.cpu.temp != null ? `${d.cpu.temp}°C` : '—');
+    const p = d.cpu.usage ?? 0;
+    setGauge('cpu-gauge', p, 'var(--blue)');
+    setText('cpu-pct',  `${p}%`, colorClass(p));
+    setText('cpu-temp', d.cpu.temp  != null ? `${d.cpu.temp}°C` : '—');
     setText('cpu-pow',  d.cpu.power != null ? `${d.cpu.power}W` : '—');
+    sparkPush(cpuChart, d.cpu.usage);
   }
 
   // GPU
   if (d.gpu) {
-    const pct = d.gpu.usage ?? 0;
-    setGauge('gpu-gauge', pct);
-    const c = gaugeColor(pct);
-    if (c) document.getElementById('gpu-gauge').style.stroke = c;
-    else document.getElementById('gpu-gauge').style.stroke = 'var(--purple)';
-    setText('gpu-pct', `${pct}%`, colorClass(pct));
-    setText('gpu-temp', `${d.gpu.temp ?? '—'}°C`);
-    setText('gpu-pow', d.gpu.power_draw != null ? `${d.gpu.power_draw.toFixed(0)}W` : '—');
+    const p = d.gpu.usage ?? 0;
+    setGauge('gpu-gauge', p, 'var(--purple)');
+    setText('gpu-pct',  `${p}%`, colorClass(p));
+    setText('gpu-temp', d.gpu.temp       != null ? `${d.gpu.temp}°C` : '—');
+    setText('gpu-pow',  d.gpu.power_draw != null ? `${d.gpu.power_draw.toFixed(0)}W` : '—');
+    sparkPush(gpuChart, d.gpu.usage);
+
     // VRAM
     if (d.gpu.vram_total) {
-      const vPct = Math.round((d.gpu.vram_used / d.gpu.vram_total) * 100);
-      setText('vram-pct', `${vPct}%`);
+      const vp = Math.round((d.gpu.vram_used / d.gpu.vram_total) * 100);
+      setGauge('vram-gauge', vp, 'var(--amber)');
+      setText('vram-pct',   `${vp}%`, colorClass(vp));
+      setText('vram-used',  fmtMB(d.gpu.vram_used));
+      setText('vram-total', fmtMB(d.gpu.vram_total));
+      sparkPush(vramChart, vp);
     }
   }
 
   // RAM
   if (d.ram) {
-    const pct = d.ram.percent ?? 0;
-    setGauge('ram-gauge', pct);
-    const c = gaugeColor(pct);
-    if (c) document.getElementById('ram-gauge').style.stroke = c;
-    else document.getElementById('ram-gauge').style.stroke = 'var(--green)';
-    setText('ram-pct', `${pct}%`, colorClass(pct));
+    const p = d.ram.percent ?? 0;
+    setGauge('ram-gauge', p, 'var(--green)');
+    setText('ram-pct',  `${p}%`, colorClass(p));
     setText('ram-used', fmtBytes(d.ram.used));
+    const swapPct = d.ram.swap_total > 0
+      ? Math.round((d.ram.swap_used / d.ram.swap_total) * 100) : 0;
+    setText('ram-swap', d.ram.swap_total > 0 ? `${swapPct}%` : '—');
+    sparkPush(ramChart, d.ram.percent);
   }
 
   // Network
@@ -195,28 +192,21 @@ function updateMetrics(d) {
     setText('rx-val', fmtBps(d.network.rx_sec));
     setText('tx-val', fmtBps(d.network.tx_sec));
     setText('net-iface', d.network.iface ?? '—');
-    netChart.data.datasets[0].data.shift();
-    netChart.data.datasets[0].data.push(d.network.rx_sec);
-    netChart.data.datasets[1].data.shift();
-    netChart.data.datasets[1].data.push(d.network.tx_sec);
+    sparkPush(netChart, d.network.rx_sec, 0);
+    sparkPush(netChart, d.network.tx_sec, 1);
     netChart.update('none');
   }
 
-  // Disk
+  // Disk — aggregate total
   if (d.disk && d.disk.length > 0) {
-    const list = document.getElementById('disk-list');
-    list.innerHTML = d.disk.map(disk => {
-      const used = fmtBytes(disk.used);
-      const total = fmtBytes(disk.size);
-      const pct = disk.percent ?? 0;
-      const barColor = pct >= 85 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--green)';
-      return `<div class="disk-row">
-        <div class="disk-mount" title="${disk.mount}">${disk.mount}</div>
-        <div class="disk-bar-wrap"><div class="disk-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
-        <div class="disk-pct">${pct}%</div>
-        <div style="font-size:10px;color:var(--dim);white-space:nowrap">${used}/${total}</div>
-      </div>`;
-    }).join('');
+    const totalUsed = d.disk.reduce((s, x) => s + (x.used || 0), 0);
+    const totalSize = d.disk.reduce((s, x) => s + (x.size || 0), 0);
+    const pct = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
+    const color = pct >= 85 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--green)';
+    setText('disk-pct-text', `${pct}%`, colorClass(pct));
+    const bar = document.getElementById('disk-bar');
+    if (bar) { bar.style.width = `${pct}%`; bar.style.background = color; }
+    setText('disk-used-text', `${fmtBytes(totalUsed)} / ${fmtBytes(totalSize)}`);
   }
 
   // Load average
@@ -227,7 +217,7 @@ function updateMetrics(d) {
   }
 }
 
-// ── Docker / services update ───────────────────────────────────────────────────
+// ── Docker / services ──────────────────────────────────────────────────────────
 const SERVICE_LINKS = {
   'portfolio-container': 'https://s3an.dev',
   'open-webui':          'https://chat.s3an.dev',
@@ -243,7 +233,7 @@ function updateDocker(containers) {
     const link = SERVICE_LINKS[c.name];
     const tag = link ? 'a' : 'div';
     const attrs = link ? `href="${link}" target="_blank" rel="noopener"` : '';
-    return `<${tag} class="service-row" ${attrs} onclick="setLogContainer('${c.name}', this)">
+    return `<${tag} class="service-row" ${attrs} onclick="handleServiceClick('${c.name}', event)">
       <span class="status-dot ${dotClass}"></span>
       <span class="service-name">${c.name}</span>
       <span class="service-image">${c.image}</span>
@@ -251,21 +241,25 @@ function updateDocker(containers) {
     </${tag}>`;
   }).join('');
 
-  // Update log tabs
   updateLogTabs(containers.filter(c => c.state === 'running').map(c => c.name));
+}
+
+function handleServiceClick(name, event) {
+  if (SERVICE_LINKS[name] && event.target.closest('a')) return;
+  event.preventDefault();
+  switchLogTab(name);
 }
 
 // ── Log streaming ──────────────────────────────────────────────────────────────
 let activeLogContainer = null;
 const LOG_MAX = 200;
 
-function updateLogTabs(containerNames) {
+function updateLogTabs(names) {
   const tabs = document.getElementById('log-tabs');
-  const existing = new Set(Array.from(tabs.querySelectorAll('.log-tab')).map(t => t.dataset.name));
-  const wanted = new Set(containerNames);
+  const existing = new Set([...tabs.querySelectorAll('.log-tab')].map(t => t.dataset.name));
+  const wanted   = new Set(names);
 
-  // Add new tabs
-  for (const name of containerNames) {
+  for (const name of names) {
     if (!existing.has(name)) {
       const btn = document.createElement('button');
       btn.className = 'log-tab';
@@ -275,13 +269,9 @@ function updateLogTabs(containerNames) {
       tabs.appendChild(btn);
     }
   }
-
-  // Remove stale tabs
   for (const btn of tabs.querySelectorAll('.log-tab')) {
     if (!wanted.has(btn.dataset.name)) btn.remove();
   }
-
-  // Auto-select first tab if nothing active
   if (!activeLogContainer && tabs.firstElementChild) {
     switchLogTab(tabs.firstElementChild.dataset.name);
   }
@@ -296,47 +286,54 @@ function switchLogTab(name) {
   ws?.send(JSON.stringify({ type: 'subscribe_logs', container: name }));
 }
 
-function setLogContainer(name, el) {
-  if (el.tagName === 'A') return; // let link open
-  switchLogTab(name);
-}
-
 function appendLog(container, line) {
   if (container !== activeLogContainer) return;
   const view = document.getElementById('log-view');
-  const isBottom = view.scrollHeight - view.clientHeight <= view.scrollTop + 20;
-
+  const atBottom = view.scrollHeight - view.clientHeight <= view.scrollTop + 20;
   const div = document.createElement('div');
   div.className = 'log-line' + (/error|err|fatal|warn/i.test(line) ? ' err' : '');
   div.textContent = line;
   view.appendChild(div);
-
-  // Trim old lines
   while (view.children.length > LOG_MAX) view.removeChild(view.firstChild);
-  if (isBottom) view.scrollTop = view.scrollHeight;
+  if (atBottom) view.scrollTop = view.scrollHeight;
+
+  // Count web requests from NPM logs
+  if (/proxy-app|npm/i.test(container) && /"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s/.test(line)) {
+    trackWebRequest();
+  }
 }
 
-// ── WebSocket ─────────────────────────────────────────────────────────────────
+// ── Web requests tracking ─────────────────────────────────────────────────────
+let webReqWindow = [];
+
+function trackWebRequest() {
+  const now = Date.now();
+  webReqWindow.push(now);
+  webReqWindow = webReqWindow.filter(t => t > now - 3600000);
+  const rpm = webReqWindow.filter(t => t > now - 60000).length;
+  setText('web-rpm',   rpm.toString());
+  setText('web-total', webReqWindow.length.toString());
+  sparkPush(webChart, rpm);
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
 let ws = null;
-let wsReconnectTimer = null;
-let wsReconnectDelay = 1000;
+let wsDelay = 1000;
 
 function wsConnect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
 
   ws.onopen = () => {
-    wsReconnectDelay = 1000;
+    wsDelay = 1000;
     document.getElementById('ws-dot').className = 'ws-dot connected';
     document.getElementById('ws-label').textContent = 'Live';
-    if (activeLogContainer) {
-      ws.send(JSON.stringify({ type: 'subscribe_logs', container: activeLogContainer }));
-    }
+    if (activeLogContainer) ws.send(JSON.stringify({ type: 'subscribe_logs', container: activeLogContainer }));
   };
 
-  ws.onmessage = (event) => {
+  ws.onmessage = ({ data }) => {
     try {
-      const msg = JSON.parse(event.data);
+      const msg = JSON.parse(data);
       if (msg.type === 'metrics') updateMetrics(msg.data);
       if (msg.type === 'docker')  updateDocker(msg.data);
       if (msg.type === 'log')     appendLog(msg.container, msg.line);
@@ -346,47 +343,10 @@ function wsConnect() {
   ws.onclose = () => {
     document.getElementById('ws-dot').className = 'ws-dot';
     document.getElementById('ws-label').textContent = 'Reconnecting...';
-    wsReconnectTimer = setTimeout(() => {
-      wsReconnectDelay = Math.min(wsReconnectDelay * 1.5, 15000);
-      wsConnect();
-    }, wsReconnectDelay);
+    setTimeout(() => { wsDelay = Math.min(wsDelay * 1.5, 15000); wsConnect(); }, wsDelay);
   };
 
   ws.onerror = () => ws.close();
 }
 
 wsConnect();
-
-// ── Web requests tracking (from NPM container logs) ───────────────────────────
-// Count HTTP access log lines arriving from proxy container
-// Pattern: NPM access log lines contain status codes
-let webReqPerMin = 0;
-let webReqWindow = []; // timestamps of recent requests
-
-function trackWebRequest() {
-  const now = Date.now();
-  webReqWindow.push(now);
-  // Keep only last 60 minutes
-  const cutoff = now - 60 * 60 * 1000;
-  webReqWindow = webReqWindow.filter(t => t > cutoff);
-
-  // RPM = requests in last 60 seconds
-  const rpm = webReqWindow.filter(t => t > now - 60000).length;
-  setText('web-rpm', rpm.toString());
-  setText('web-total', webReqWindow.length.toString());
-
-  // Push to chart
-  webData.shift();
-  webData.push(rpm);
-  webChart.update('none');
-}
-
-// Monkey-patch appendLog to also count NPM access log lines
-const _appendLog = appendLog;
-window.appendLogWithTracking = function(container, line) {
-  // NPM access log pattern: contains HTTP status codes (e.g. " 200 " or " 404 ")
-  if (/proxy-app|npm/.test(container) && /"\s+(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s+/.test(line)) {
-    trackWebRequest();
-  }
-  _appendLog(container, line);
-};
