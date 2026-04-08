@@ -109,15 +109,16 @@ async function getGpu() {
        '--format=csv,noheader,nounits'],
       { timeout: 5000 }
     );
-    const parts = stdout.trim().split(', ').map(v => parseFloat(v));
-    if (parts.length < 7 || parts.some(isNaN)) return null;
+    const nv = s => { const v = parseFloat(s.trim()); return isNaN(v) ? null : v; };
+    const parts = stdout.trim().split(',').map(nv);
+    if (parts.length < 4 || parts[0] == null || parts[3] == null) return null;
     return {
-      usage: parts[0],
-      mem_usage: parts[1],
-      vram_used: parts[2],
-      vram_total: parts[3],
-      temp: parts[4],
-      power_draw: parts[5],
+      usage:       parts[0],
+      mem_usage:   parts[1],
+      vram_used:   parts[2],
+      vram_total:  parts[3],
+      temp:        parts[4],
+      power_draw:  parts[5],
       power_limit: parts[6],
     };
   } catch {
