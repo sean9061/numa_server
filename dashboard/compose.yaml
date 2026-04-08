@@ -1,0 +1,32 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: numa-dashboard
+    container_name: dashboard
+    restart: always
+    pid: "host"                  # Access host PID namespace for /proc metrics
+    environment:
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_IPS=${ALLOWED_IPS:-}
+      - NODE_ENV=production
+    volumes:
+      - /sys:/sys:ro                                    # CPU temp, RAPL power sensors
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # Docker stats & logs
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - proxy_net
+
+networks:
+  proxy_net:
+    external: true

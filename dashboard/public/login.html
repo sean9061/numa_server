@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Numa Monitor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #060c18;
+      --surface:  #0c1526;
+      --border:   #1a2d4a;
+      --text:     #e2e8f0;
+      --dim:      #4e6282;
+      --blue:     #3b82f6;
+      --blue-dk:  #2563eb;
+      --red:      #ef4444;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 25% 40%, rgba(59,130,246,0.06) 0%, transparent 55%),
+        radial-gradient(ellipse at 75% 60%, rgba(99,102,241,0.06) 0%, transparent 55%);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      color: var(--text);
+    }
+
+    .card {
+      width: 340px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 32px 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--blue);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .brand-name {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--dim);
+      margin-top: 1px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 11px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.15s;
+      letter-spacing: 0.1em;
+    }
+
+    input[type="password"]:focus {
+      border-color: var(--blue);
+    }
+
+    button[type="submit"] {
+      margin-top: 16px;
+      width: 100%;
+      padding: 11px;
+      background: var(--blue);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button[type="submit"]:hover { background: var(--blue-dk); }
+    button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--red);
+      min-height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">Numa Monitor</div>
+        <div class="brand-sub">numa_01 &mdash; Server Dashboard</div>
+      </div>
+    </div>
+
+    <form id="form">
+      <label for="pw">Password</label>
+      <input type="password" id="pw" autocomplete="current-password" autofocus placeholder="••••••••••••">
+      <button type="submit" id="btn">Login</button>
+      <div class="error" id="err"></div>
+    </form>
+  </div>
+
+  <script>
+    // Redirect if already authenticated
+    fetch('/auth/check').then(r => r.json()).then(d => {
+      if (d.authenticated) location.href = '/';
+    }).catch(() => {});
+
+    document.getElementById('form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const pw  = document.getElementById('pw');
+      const btn = document.getElementById('btn');
+      const err = document.getElementById('err');
+
+      err.textContent = '';
+      btn.disabled = true;
+      btn.textContent = '...';
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pw.value }),
+        });
+
+        if (res.ok) {
+          location.href = '/';
+        } else {
+          const body = await res.json().catch(() => ({}));
+          err.textContent = res.status === 429
+            ? 'Too many attempts. Please wait.'
+            : res.status === 403
+            ? 'Access denied from this IP.'
+            : body.error ?? 'Invalid password';
+          pw.value = '';
+          pw.focus();
+        }
+      } catch {
+        err.textContent = 'Connection error';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Login';
+      }
+    });
+  </script>
+</body>
+</html>
