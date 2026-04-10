@@ -41,6 +41,65 @@ export async function getContainerStats(nameOrId) {
   }
 }
 
+// ── Web request tracking (NPM access logs, server-side) ───────────────────────
+
+let webReqWindow = []; // timestamps of HTTP requests (last 60 minutes)
+const HTTP_METHODS_RE = /"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
+
+export function getWebStats() {
+  const now = Date.now();
+  return {
+    rpm:      webReqWindow.filter(t => t > now - 60_000).length,
+    total_1h: webReqWindow.length,
+  };
+}
+
+export function startNpmTracking() {
+  docker.listContainers({ all: false }, (err, list) => {
+    if (err || !list) {
+      setTimeout(startNpmTracking, 15_000);
+      return;
+    }
+
+    const npm = list.find(c => c.Image.includes('nginx-proxy-manager'));
+    if (!npm) {
+      console.log('[web-tracking] NPM container not found, retrying in 30s');
+      setTimeout(startNpmTracking, 30_000);
+      return;
+    }
+
+    docker.getContainer(npm.Id).logs(
+      { follow: true, stdout: true, stderr: false, tail: 0 },
+      (err, stream) => {
+        if (err || !stream) {
+          console.error('[web-tracking] Log attach failed:', err?.message);
+          setTimeout(startNpmTracking, 15_000);
+          return;
+        }
+
+        docker.modem.demuxStream(stream, {
+          write(chunk) {
+            const now = Date.now();
+            for (const line of chunk.toString('utf-8').split('\n')) {
+              if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
+            }
+            // keep only last 60 minutes
+            const cutoff = now - 3_600_000;
+            if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
+              webReqWindow = webReqWindow.filter(t => t > cutoff);
+            }
+          },
+        }, { write() {} });
+
+        stream.on('end',   () => { console.log('[web-tracking] stream ended, reconnecting'); setTimeout(startNpmTracking, 5_000); });
+        stream.on('error', () => setTimeout(startNpmTracking, 5_000));
+      }
+    );
+  });
+}
+
+// ── Container log streaming ────────────────────────────────────────────────────
+
 /**
  * Stream logs from a container, calling onLine for each log line.
  * Returns a stop function.

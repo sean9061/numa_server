@@ -297,23 +297,14 @@ function appendLog(container, line) {
   while (view.children.length > LOG_MAX) view.removeChild(view.firstChild);
   if (atBottom) view.scrollTop = view.scrollHeight;
 
-  // Count web requests from NPM logs
-  if (/proxy-app|npm/i.test(container) && /"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s/.test(line)) {
-    trackWebRequest();
-  }
+
 }
 
-// ── Web requests tracking ─────────────────────────────────────────────────────
-let webReqWindow = [];
-
-function trackWebRequest() {
-  const now = Date.now();
-  webReqWindow.push(now);
-  webReqWindow = webReqWindow.filter(t => t > now - 3600000);
-  const rpm = webReqWindow.filter(t => t > now - 60000).length;
-  setText('web-rpm',   rpm.toString());
-  setText('web-total', webReqWindow.length.toString());
-  sparkPush(webChart, rpm);
+// ── Web requests (server-side data) ──────────────────────────────────────────
+function updateWebRequests(d) {
+  setText('web-rpm',   d.rpm.toString());
+  setText('web-total', d.total_1h.toString());
+  sparkPush(webChart, d.rpm);
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────────
@@ -334,9 +325,10 @@ function wsConnect() {
   ws.onmessage = ({ data }) => {
     try {
       const msg = JSON.parse(data);
-      if (msg.type === 'metrics') updateMetrics(msg.data);
-      if (msg.type === 'docker')  updateDocker(msg.data);
-      if (msg.type === 'log')     appendLog(msg.container, msg.line);
+      if (msg.type === 'metrics')      updateMetrics(msg.data);
+      if (msg.type === 'docker')       updateDocker(msg.data);
+      if (msg.type === 'log')          appendLog(msg.container, msg.line);
+      if (msg.type === 'web_requests') updateWebRequests(msg.data);
     } catch {}
   };
 

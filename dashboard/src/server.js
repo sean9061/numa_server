@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authRouter, verifyToken, COOKIE_NAME_EXPORT as COOKIE_NAME } from './auth.js';
 import { collectMetrics } from './metrics.js';
-import { listContainers, getContainerStats, streamContainerLogs } from './docker-monitor.js';
+import { listContainers, getContainerStats, streamContainerLogs, startNpmTracking, getWebStats } from './docker-monitor.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT ?? 3000;
@@ -141,11 +141,15 @@ function broadcast(data) {
   }
 }
 
+// Web request tracking (server-side, always running)
+startNpmTracking();
+
 // Metrics broadcast loop (every 2s)
 setInterval(async () => {
   if (wss.clients.size === 0) return;
   try {
     broadcast({ type: 'metrics', data: await collectMetrics() });
+    broadcast({ type: 'web_requests', data: getWebStats() });
   } catch (err) {
     console.error('[metrics]', err.message);
   }
