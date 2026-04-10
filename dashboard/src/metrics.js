@@ -100,30 +100,38 @@ async function getNetworkRate() {
   }
 }
 
-// GPU via nvidia-smi
+// GPU via nvidia-smi (複数パスを試行)
+const NVIDIA_SMI_PATHS = [
+  'nvidia-smi',
+  '/usr/bin/nvidia-smi',
+  '/usr/local/nvidia/bin/nvidia-smi',
+];
+const NV_ARGS = [
+  '--query-gpu=utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
+  '--format=csv,noheader,nounits',
+];
+const nv = s => { const v = parseFloat(s.trim()); return isNaN(v) ? null : v; };
+
 async function getGpu() {
-  try {
-    const { stdout } = await exec(
-      'nvidia-smi',
-      ['--query-gpu=utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
-       '--format=csv,noheader,nounits'],
-      { timeout: 5000 }
-    );
-    const nv = s => { const v = parseFloat(s.trim()); return isNaN(v) ? null : v; };
-    const parts = stdout.trim().split(',').map(nv);
-    if (parts.length < 4 || parts[0] == null || parts[3] == null) return null;
-    return {
-      usage:       parts[0],
-      mem_usage:   parts[1],
-      vram_used:   parts[2],
-      vram_total:  parts[3],
-      temp:        parts[4],
-      power_draw:  parts[5],
-      power_limit: parts[6],
-    };
-  } catch {
-    return null;
+  for (const smiPath of NVIDIA_SMI_PATHS) {
+    try {
+      const { stdout } = await exec(smiPath, NV_ARGS, { timeout: 5000 });
+      const parts = stdout.trim().split(',').map(nv);
+      if (parts.length < 4 || parts[0] == null || parts[3] == null) continue;
+      return {
+        usage:       parts[0],
+        mem_usage:   parts[1],
+        vram_used:   parts[2],
+        vram_total:  parts[3],
+        temp:        parts[4],
+        power_draw:  parts[5],
+        power_limit: parts[6],
+      };
+    } catch {
+      // try next path
+    }
   }
+  return null;
 }
 
 // CPU temperature from /sys/class/thermal
