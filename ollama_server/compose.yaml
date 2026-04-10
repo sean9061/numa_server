@@ -15,8 +15,8 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
-              capabilities: [gpu]               # GTX 1660 Super GPU passthrough
+              count: all
+              capabilities: [gpu]               # GTX 1660 Super x2 GPU passthrough
     networks:
       - ollama_net
     restart: always
