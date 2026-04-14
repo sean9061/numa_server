@@ -84,6 +84,14 @@ const BASE_OPTS = {
   elements: { point: { radius: 0 }, line: { tension: 0.4, borderWidth: 1.5 } },
 };
 
+const CORE_COLORS = [
+  '#3b82f6','#818cf8','#22c55e','#f59e0b','#ef4444','#06b6d4',
+  '#f97316','#84cc16','#ec4899','#10b981','#8b5cf6','#14b8a6',
+  '#f43f5e','#a3e635','#fb923c','#38bdf8',
+];
+const GPU_COLORS  = ['#818cf8', '#a78bfa'];
+const GPU_BG      = ['rgba(129,140,248,0.10)', 'rgba(167,139,250,0.10)'];
+
 function makeSparkline(canvasId, color, bgColor, maxY = 100) {
   return new Chart(document.getElementById(canvasId), {
     type: 'line',
@@ -128,17 +136,87 @@ function makeWebChart(canvasId) {
   });
 }
 
-const cpuChart  = makeSparkline('cpu-chart',  '#3b82f6', 'rgba(59,130,246,0.10)');
-const gpuChart  = makeSparkline('gpu-chart',  '#818cf8', 'rgba(129,140,248,0.10)');
-const ramChart  = makeSparkline('ram-chart',  '#22c55e', 'rgba(34,197,94,0.10)');
-const vramChart = makeSparkline('vram-chart', '#f59e0b', 'rgba(245,158,11,0.10)');
-const netChart  = makeNetChart('net-chart');
-const webChart  = makeWebChart('web-chart');
+// CPU chart: initialized dynamically when core count is known
+let cpuChart = null;
+// GPU charts: initialized dynamically when GPU cards are created
+const gpuCharts = [];
+
+const ramChart = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
+const netChart = makeNetChart('net-chart');
+const webChart = makeWebChart('web-chart');
 
 function sparkPush(chart, value, dsIdx = 0) {
   chart.data.datasets[dsIdx].data.shift();
   chart.data.datasets[dsIdx].data.push(value ?? null);
   chart.update('none');
+}
+
+// ── CPU multi-core chart ───────────────────────────────────────────────────────
+function initCpuChart(coreCount) {
+  if (cpuChart) { cpuChart.destroy(); cpuChart = null; }
+  cpuChart = new Chart(document.getElementById('cpu-chart'), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: Array.from({ length: coreCount }, (_, i) => ({
+        data: Array(HIST).fill(null),
+        borderColor: CORE_COLORS[i % CORE_COLORS.length],
+        backgroundColor: 'transparent',
+        fill: false,
+      })),
+    },
+    options: {
+      ...BASE_OPTS,
+      elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 1 } },
+      scales: { ...BASE_OPTS.scales, y: { display: false, min: 0, max: 100 } },
+    },
+  });
+}
+
+// ── GPU cards (dynamic) ────────────────────────────────────────────────────────
+let gpuCardsReady = false;
+
+function initGpuCards(count) {
+  if (gpuCardsReady) return;
+  gpuCardsReady = true;
+
+  const row = document.getElementById('row-metrics');
+  const ramCard = document.getElementById('ram-card');
+  // CPU + N GPUs + RAM
+  row.style.gridTemplateColumns = `1fr ${Array(count).fill('1fr').join(' ')} 1fr`;
+
+  for (let i = 0; i < count; i++) {
+    const color = GPU_COLORS[i % GPU_COLORS.length];
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-title">GPU ${i}</div>
+      <div class="metric-body">
+        <div class="metric-gauge">
+          <svg class="gauge-svg" viewBox="0 0 160 100">
+            <path class="gauge-track" d="M 15 88 A 65 65 0 0 1 145 88"/>
+            <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88"
+              id="gpu-gauge-${i}" stroke="${color}" stroke-dasharray="0 204.2"/>
+          </svg>
+          <div class="gauge-center-text">
+            <div class="gauge-pct" id="gpu-pct-${i}">—</div>
+            <div class="gauge-sub">USAGE</div>
+          </div>
+        </div>
+        <div class="metric-chart"><canvas id="gpu-chart-${i}"></canvas></div>
+      </div>
+      <div class="vram-row">
+        <span class="vram-label">VRAM</span>
+        <div class="vram-bar-wrap"><div class="vram-bar-fill" id="vram-bar-${i}" style="width:0%"></div></div>
+        <span class="vram-label" id="vram-text-${i}">—</span>
+      </div>
+      <div class="metric-meta">
+        <div class="meta-pill">🌡 <span id="gpu-temp-${i}">—</span></div>
+        <div class="meta-pill">⚡ <span id="gpu-pow-${i}">—</span></div>
+      </div>`;
+    row.insertBefore(card, ramCard);
+    gpuCharts[i] = makeSparkline(`gpu-chart-${i}`, color, GPU_BG[i % GPU_BG.length]);
+  }
 }
 
 // ── Metrics update ────────────────────────────────────────────────────────────
@@ -152,27 +230,43 @@ function updateMetrics(d) {
     setText('cpu-pct',  `${p}%`, colorClass(p));
     setText('cpu-temp', d.cpu.temp  != null ? `${d.cpu.temp}°C` : '—');
     setText('cpu-pow',  d.cpu.power != null ? `${d.cpu.power}W` : '—');
-    sparkPush(cpuChart, d.cpu.usage);
+
+    if (d.cpu.cores && d.cpu.cores.length > 0) {
+      if (!cpuChart || cpuChart.data.datasets.length !== d.cpu.cores.length) {
+        initCpuChart(d.cpu.cores.length);
+      }
+      d.cpu.cores.forEach((usage, i) => {
+        cpuChart.data.datasets[i].data.shift();
+        cpuChart.data.datasets[i].data.push(usage ?? null);
+      });
+      cpuChart.update('none');
+    } else {
+      if (!cpuChart) cpuChart = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
+      sparkPush(cpuChart, p);
+    }
   }
 
-  // GPU
-  if (d.gpu) {
-    const p = d.gpu.usage ?? 0;
-    setGauge('gpu-gauge', p, 'var(--purple)');
-    setText('gpu-pct',  `${p}%`, colorClass(p));
-    setText('gpu-temp', d.gpu.temp       != null ? `${d.gpu.temp}°C` : '—');
-    setText('gpu-pow',  d.gpu.power_draw != null ? `${d.gpu.power_draw.toFixed(0)}W` : '—');
-    sparkPush(gpuChart, d.gpu.usage);
+  // GPU (array)
+  if (d.gpu && d.gpu.length > 0) {
+    if (!gpuCardsReady) initGpuCards(d.gpu.length);
+    d.gpu.forEach((g, i) => {
+      const p = g.usage ?? 0;
+      setGauge(`gpu-gauge-${i}`, p, GPU_COLORS[i % GPU_COLORS.length]);
+      setText(`gpu-pct-${i}`,  `${p}%`, colorClass(p));
+      setText(`gpu-temp-${i}`, g.temp       != null ? `${g.temp}°C` : '—');
+      setText(`gpu-pow-${i}`,  g.power_draw != null ? `${g.power_draw.toFixed(0)}W` : '—');
+      sparkPush(gpuCharts[i], g.usage);
 
-    // VRAM
-    if (d.gpu.vram_total) {
-      const vp = Math.round((d.gpu.vram_used / d.gpu.vram_total) * 100);
-      setGauge('vram-gauge', vp, 'var(--amber)');
-      setText('vram-pct',   `${vp}%`, colorClass(vp));
-      setText('vram-used',  fmtMB(d.gpu.vram_used));
-      setText('vram-total', fmtMB(d.gpu.vram_total));
-      sparkPush(vramChart, vp);
-    }
+      if (g.vram_total) {
+        const vp = Math.round((g.vram_used / g.vram_total) * 100);
+        const bar = document.getElementById(`vram-bar-${i}`);
+        if (bar) {
+          bar.style.width = `${vp}%`;
+          bar.style.background = vp >= 85 ? 'var(--red)' : 'var(--amber)';
+        }
+        setText(`vram-text-${i}`, `${fmtMB(g.vram_used)}/${fmtMB(g.vram_total)}`);
+      }
+    });
   }
 
   // RAM
