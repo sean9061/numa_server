@@ -53,6 +53,12 @@
       background: transparent; color: var(--dim); font-size: 12px; cursor: pointer;
       transition: color 0.15s, border-color 0.15s; }
     .btn-logout:hover { color: var(--red); border-color: var(--red); }
+    .time-range { display: flex; gap: 3px; }
+    .tr-btn { padding: 4px 9px; border-radius: 5px; font-size: 11px; font-weight: 500;
+      cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--dim);
+      transition: all 0.15s; }
+    .tr-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .tr-btn:not(.active):hover { border-color: var(--blue); color: var(--text); }
     .ws-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); transition: background 0.3s; }
     .ws-dot.connected { background: var(--green); }
     .ws-label { font-size: 11px; color: var(--dim); }
@@ -234,6 +240,13 @@
       <span class="ws-label" id="ws-label">Connecting</span>
     </div>
     <div class="header-spacer"></div>
+    <div class="time-range">
+      <button class="tr-btn active" data-pts="60"   onclick="setTimeWindow(60)">2m</button>
+      <button class="tr-btn"        data-pts="300"  onclick="setTimeWindow(300)">10m</button>
+      <button class="tr-btn"        data-pts="900"  onclick="setTimeWindow(900)">30m</button>
+      <button class="tr-btn"        data-pts="1800" onclick="setTimeWindow(1800)">1h</button>
+    </div>
+    <div class="header-sep"></div>
     <div id="clock">—</div>
     <div class="header-sep"></div>
     <button class="btn-logout" onclick="logout()">Logout</button>

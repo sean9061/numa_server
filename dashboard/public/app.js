@@ -69,6 +69,71 @@ function fmtUptime(s) {
   return `${m}m`;
 }
 
+// ── History buffer ────────────────────────────────────────────────────────────
+const MAX_HIST   = 1800;
+let historyBuffer = [];
+let timeWindow    = 60;   // data points currently displayed
+
+function pushHistory(d) {
+  historyBuffer.push({
+    ts:      d.timestamp ?? Date.now(),
+    cpu:     d.cpu?.usage   ?? null,
+    cores:   d.cpu?.cores   ?? [],
+    gpu:     (d.gpu ?? []).map(g => ({
+      usage:      g.usage,
+      vram_pct:   g.vram_total > 0 ? Math.round((g.vram_used / g.vram_total) * 100) : null,
+      vram_used:  g.vram_used,
+      vram_total: g.vram_total,
+    })),
+    ram:     d.ram?.percent     ?? null,
+    net_rx:  d.network?.rx_sec  ?? null,
+    net_tx:  d.network?.tx_sec  ?? null,
+    disk_rx: d.disk_io?.rx_sec  ?? null,
+    disk_wx: d.disk_io?.wx_sec  ?? null,
+    web_rpm: d.web_rpm          ?? null,
+  });
+  if (historyBuffer.length > MAX_HIST) historyBuffer.shift();
+}
+
+function setTimeWindow(pts) {
+  timeWindow = pts;
+  document.querySelectorAll('.tr-btn').forEach(btn =>
+    btn.classList.toggle('active', Number(btn.dataset.pts) === pts)
+  );
+  rebuildCharts();
+}
+
+function rebuildCharts() {
+  const entries = historyBuffer.slice(-timeWindow);
+  const pad = (arr, fill = null) => {
+    const a = arr.slice(-timeWindow);
+    return [...Array(Math.max(0, timeWindow - a.length)).fill(fill), ...a];
+  };
+
+  const resize = (chart, datasets) => {
+    chart.data.labels = Array(timeWindow).fill('');
+    datasets.forEach(([dsIdx, data]) => {
+      chart.data.datasets[dsIdx].data = data;
+    });
+    chart.update('none');
+  };
+
+  resize(cpuChart, [[0, pad(entries.map(e => e.cpu))]]);
+  resize(ramChart, [[0, pad(entries.map(e => e.ram))]]);
+  resize(netChart, [
+    [0, pad(entries.map(e => e.net_rx ?? 0), 0)],
+    [1, pad(entries.map(e => e.net_tx ?? 0), 0)],
+  ]);
+  resize(webChart, [[0, pad(entries.map(e => e.web_rpm ?? 0), 0)]]);
+
+  if (gpuCardsReady) {
+    gpuCharts.forEach((chart, i) =>
+      resize(chart, [[0, pad(entries.map(e => e.gpu?.[i]?.usage ?? null))]]));
+    vramCharts.forEach((chart, i) =>
+      resize(chart, [[0, pad(entries.map(e => e.gpu?.[i]?.vram_pct ?? null))]]));
+  }
+}
+
 // ── Chart factory ─────────────────────────────────────────────────────────────
 const HIST = 60;
 
@@ -195,6 +260,8 @@ function initGpuCards(count) {
     gpuCharts[i]  = makeSparkline(`gpu-chart-${i}`,  GPU_COLORS[i % GPU_COLORS.length], GPU_BG[i % GPU_BG.length]);
     vramCharts[i] = makeSparkline(`vram-chart-${i}`, '#f59e0b', 'rgba(245,158,11,0.10)');
   }
+  // Populate GPU charts from existing history buffer
+  if (historyBuffer.length > 0) rebuildCharts();
 }
 
 // ── Metrics update ────────────────────────────────────────────────────────────
@@ -292,6 +359,13 @@ function updateMetrics(d) {
     setText('disk-wx', fmtBps(d.disk_io.wx_sec));
   }
 
+  // Web requests (merged into metrics message)
+  if (d.web_rpm != null) {
+    setText('web-rpm',   d.web_rpm.toString());
+    setText('web-total', (d.web_total ?? 0).toString());
+    sparkPush(webChart, d.web_rpm);
+  }
+
   // Load average
   if (d.load) {
     setText('load-1',  d.load.m1?.toFixed(2)  ?? '—');
@@ -383,12 +457,6 @@ function appendLog(container, line) {
 
 }
 
-// ── Web requests (server-side data) ──────────────────────────────────────────
-function updateWebRequests(d) {
-  setText('web-rpm',   d.rpm.toString());
-  setText('web-total', d.total_1h.toString());
-  sparkPush(webChart, d.rpm);
-}
 
 // ── WebSocket ──────────────────────────────────────────────────────────────────
 let ws = null;
@@ -408,10 +476,24 @@ function wsConnect() {
   ws.onmessage = ({ data }) => {
     try {
       const msg = JSON.parse(data);
-      if (msg.type === 'metrics')      updateMetrics(msg.data);
-      if (msg.type === 'docker')       updateDocker(msg.data);
-      if (msg.type === 'log')          appendLog(msg.container, msg.line);
-      if (msg.type === 'web_requests') updateWebRequests(msg.data);
+      if (msg.type === 'metrics') {
+        pushHistory(msg.data);
+        updateMetrics(msg.data);
+      }
+      if (msg.type === 'history') {
+        historyBuffer = msg.data;
+        rebuildCharts();
+        // Init GPU cards from history if not yet done
+        if (!gpuCardsReady && historyBuffer.length > 0) {
+          const gpuCount = historyBuffer[historyBuffer.length - 1].gpu?.length ?? 0;
+          if (gpuCount > 0) {
+            initGpuCards(gpuCount);
+            rebuildCharts();
+          }
+        }
+      }
+      if (msg.type === 'docker') updateDocker(msg.data);
+      if (msg.type === 'log')    appendLog(msg.container, msg.line);
     } catch {}
   };
 

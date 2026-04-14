@@ -15,6 +15,7 @@ services:
     volumes:
       - /sys:/sys:ro                                    # CPU temp, RAPL power sensors
       - /var/run/docker.sock:/var/run/docker.sock:ro   # Docker stats & logs
+      - ./data:/app/data                               # Persistent metrics history
     security_opt:
       - no-new-privileges:true
     deploy:
