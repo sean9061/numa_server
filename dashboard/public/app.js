@@ -136,11 +136,10 @@ function makeWebChart(canvasId) {
   });
 }
 
-// CPU chart: initialized dynamically when core count is known
-let cpuChart = null;
 // GPU charts: initialized dynamically when GPU cards are created
 const gpuCharts = [];
 
+const cpuChart = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
 const ramChart = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
 const netChart = makeNetChart('net-chart');
 const webChart = makeWebChart('web-chart');
@@ -149,28 +148,6 @@ function sparkPush(chart, value, dsIdx = 0) {
   chart.data.datasets[dsIdx].data.shift();
   chart.data.datasets[dsIdx].data.push(value ?? null);
   chart.update('none');
-}
-
-// ── CPU multi-core chart ───────────────────────────────────────────────────────
-function initCpuChart(coreCount) {
-  if (cpuChart) { cpuChart.destroy(); cpuChart = null; }
-  cpuChart = new Chart(document.getElementById('cpu-chart'), {
-    type: 'line',
-    data: {
-      labels: Array(HIST).fill(''),
-      datasets: Array.from({ length: coreCount }, (_, i) => ({
-        data: Array(HIST).fill(null),
-        borderColor: CORE_COLORS[i % CORE_COLORS.length],
-        backgroundColor: 'transparent',
-        fill: false,
-      })),
-    },
-    options: {
-      ...BASE_OPTS,
-      elements: { point: { radius: 0 }, line: { tension: 0.3, borderWidth: 1 } },
-      scales: { ...BASE_OPTS.scales, y: { display: false, min: 0, max: 100 } },
-    },
-  });
 }
 
 // ── GPU cards (dynamic) ────────────────────────────────────────────────────────
@@ -230,19 +207,29 @@ function updateMetrics(d) {
     setText('cpu-pct',  `${p}%`, colorClass(p));
     setText('cpu-temp', d.cpu.temp  != null ? `${d.cpu.temp}°C` : '—');
     setText('cpu-pow',  d.cpu.power != null ? `${d.cpu.power}W` : '—');
+    sparkPush(cpuChart, p);
 
+    // Per-core bars
     if (d.cpu.cores && d.cpu.cores.length > 0) {
-      if (!cpuChart || cpuChart.data.datasets.length !== d.cpu.cores.length) {
-        initCpuChart(d.cpu.cores.length);
+      const grid = document.getElementById('cpu-cores');
+      if (grid.children.length !== d.cpu.cores.length) {
+        grid.innerHTML = d.cpu.cores.map((_, i) =>
+          `<div class="core-item">
+            <span class="core-label">${i}</span>
+            <div class="core-track"><div class="core-fill" id="core-fill-${i}"></div></div>
+            <span class="core-pct" id="core-pct-${i}">—</span>
+          </div>`
+        ).join('');
       }
       d.cpu.cores.forEach((usage, i) => {
-        cpuChart.data.datasets[i].data.shift();
-        cpuChart.data.datasets[i].data.push(usage ?? null);
+        const pct = usage ?? 0;
+        const fill = document.getElementById(`core-fill-${i}`);
+        if (fill) {
+          fill.style.width = `${pct}%`;
+          fill.style.background = pct >= 85 ? 'var(--red)' : pct >= 65 ? 'var(--amber)' : 'var(--blue)';
+        }
+        setText(`core-pct-${i}`, `${pct}%`);
       });
-      cpuChart.update('none');
-    } else {
-      if (!cpuChart) cpuChart = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
-      sparkPush(cpuChart, p);
     }
   }
 
