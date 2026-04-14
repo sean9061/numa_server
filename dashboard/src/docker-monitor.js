@@ -69,7 +69,7 @@ export function startNpmTracking() {
     }
 
     docker.getContainer(npm.Id).logs(
-      { follow: true, stdout: true, stderr: false, tail: 0 },
+      { follow: true, stdout: true, stderr: true, tail: 0 },
       (err, stream) => {
         if (err || !stream) {
           console.error('[web-tracking] Log attach failed:', err?.message);
@@ -77,19 +77,18 @@ export function startNpmTracking() {
           return;
         }
 
-        docker.modem.demuxStream(stream, {
-          write(chunk) {
-            const now = Date.now();
-            for (const line of chunk.toString('utf-8').split('\n')) {
-              if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
-            }
-            // keep only last 60 minutes
-            const cutoff = now - 3_600_000;
-            if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
-              webReqWindow = webReqWindow.filter(t => t > cutoff);
-            }
-          },
-        }, { write() {} });
+        const countLine = (chunk) => {
+          const now = Date.now();
+          for (const line of chunk.toString('utf-8').split('\n')) {
+            if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
+          }
+          const cutoff = now - 3_600_000;
+          if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
+            webReqWindow = webReqWindow.filter(t => t > cutoff);
+          }
+        };
+
+        docker.modem.demuxStream(stream, { write: countLine }, { write: countLine });
 
         stream.on('end',   () => { console.log('[web-tracking] stream ended, reconnecting'); setTimeout(startNpmTracking, 5_000); });
         stream.on('error', () => setTimeout(startNpmTracking, 5_000));

@@ -101,6 +101,17 @@
     .meta-pill { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--dim); }
     .meta-pill span { color: var(--text); font-weight: 500; }
 
+    /* ── CPU core grid ── */
+    .core-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 5px;
+      margin-top: 4px; flex-shrink: 0; }
+    .core-item { display: flex; align-items: center; gap: 3px; }
+    .core-label { font-size: 8px; color: var(--dim); width: 12px; flex-shrink: 0; }
+    .core-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .core-fill  { height: 100%; border-radius: 2px; background: var(--blue);
+      transition: width 0.4s ease, background 0.3s; }
+    .core-pct   { font-size: 8px; color: var(--dim); width: 22px; text-align: right; flex-shrink: 0;
+      font-variant-numeric: tabular-nums; }
+
     /* ── VRAM bar (inside GPU card) ── */
     .vram-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-shrink: 0; }
     .vram-bar-wrap { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
@@ -234,6 +245,7 @@
         </div>
         <div class="metric-chart"><canvas id="cpu-chart"></canvas></div>
       </div>
+      <div class="core-grid" id="cpu-cores"></div>
       <div class="metric-meta">
         <div class="meta-pill">🌡 <span id="cpu-temp">—</span></div>
         <div class="meta-pill">⚡ <span id="cpu-pow">—</span></div>
