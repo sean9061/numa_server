@@ -112,11 +112,24 @@
     .core-pct   { font-size: 8px; color: var(--dim); width: 22px; text-align: right; flex-shrink: 0;
       font-variant-numeric: tabular-nums; }
 
-    /* ── VRAM bar (inside GPU card) ── */
-    .vram-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-shrink: 0; }
-    .vram-bar-wrap { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
-    .vram-bar-fill { height: 100%; border-radius: 3px; background: var(--amber); transition: width 0.5s ease, background 0.3s; }
-    .vram-label { font-size: 10px; color: var(--dim); white-space: nowrap; }
+    /* ── Combined GPU card ── */
+    .gpu-section { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+    .gpu-divider { height: 1px; background: var(--border); flex-shrink: 0; margin: 2px 0; }
+    .gpu-section-header { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .gpu-section-title { font-size: 10px; font-weight: 700; color: var(--text); }
+    .gpu-section-meta  { font-size: 10px; color: var(--dim); }
+    .gpu-section-body  { flex: 1; min-height: 0; display: flex; gap: 6px; align-items: stretch; }
+    .gpu-pct-big { font-size: 20px; font-weight: 700; width: 44px; flex-shrink: 0;
+      text-align: center; font-variant-numeric: tabular-nums; align-self: center; }
+    .gpu-charts { flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    .gpu-chart-wrap { display: flex; flex-direction: column; min-height: 0; }
+    .gpu-chart-label { font-size: 8px; color: var(--dim); flex-shrink: 0; margin-bottom: 1px; }
+    .gpu-chart-canvas { flex: 1; min-height: 0; position: relative; }
+
+    /* ── Disk I/O ── */
+    .disk-io { display: flex; justify-content: center; gap: 16px; flex-shrink: 0; }
+    .disk-io-item { font-size: 10px; color: var(--dim); }
+    .disk-io-item span { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
     /* ── Network card ── */
     .net-chart-wrap { flex: 1; min-height: 0; position: relative; margin-top: 6px; }
@@ -309,6 +322,10 @@
           <div class="disk-bar-fill" id="disk-bar" style="width:0%"></div>
         </div>
         <div class="disk-sub" id="disk-used-text">—</div>
+        <div class="disk-io">
+          <span class="disk-io-item">↓ R <span id="disk-rx">—</span></span>
+          <span class="disk-io-item">↑ W <span id="disk-wx">—</span></span>
+        </div>
       </div>
     </div>
 

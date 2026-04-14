@@ -136,8 +136,9 @@ function makeWebChart(canvasId) {
   });
 }
 
-// GPU charts: initialized dynamically when GPU cards are created
-const gpuCharts = [];
+// GPU/VRAM charts: initialized dynamically when GPU card is created
+const gpuCharts  = [];
+const vramCharts = [];
 
 const cpuChart = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
 const ramChart = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
@@ -150,7 +151,7 @@ function sparkPush(chart, value, dsIdx = 0) {
   chart.update('none');
 }
 
-// ── GPU cards (dynamic) ────────────────────────────────────────────────────────
+// ── GPU combined card (dynamic) ───────────────────────────────────────────────
 let gpuCardsReady = false;
 
 function initGpuCards(count) {
@@ -159,40 +160,40 @@ function initGpuCards(count) {
 
   const row = document.getElementById('row-metrics');
   const ramCard = document.getElementById('ram-card');
-  // CPU + N GPUs + RAM
-  row.style.gridTemplateColumns = `1fr ${Array(count).fill('1fr').join(' ')} 1fr`;
+  // CPU + GPU(combined, wider) + RAM
+  row.style.gridTemplateColumns = `1fr 1.6fr 1fr`;
 
-  for (let i = 0; i < count; i++) {
-    const color = GPU_COLORS[i % GPU_COLORS.length];
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-title">GPU ${i}</div>
-      <div class="metric-body">
-        <div class="metric-gauge">
-          <svg class="gauge-svg" viewBox="0 0 160 100">
-            <path class="gauge-track" d="M 15 88 A 65 65 0 0 1 145 88"/>
-            <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88"
-              id="gpu-gauge-${i}" stroke="${color}" stroke-dasharray="0 204.2"/>
-          </svg>
-          <div class="gauge-center-text">
-            <div class="gauge-pct" id="gpu-pct-${i}">—</div>
-            <div class="gauge-sub">USAGE</div>
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const sections = Array.from({ length: count }, (_, i) => `
+    ${i > 0 ? '<div class="gpu-divider"></div>' : ''}
+    <div class="gpu-section">
+      <div class="gpu-section-header">
+        <span class="gpu-section-title">GPU ${i}</span>
+        <span class="gpu-section-meta">🌡 <span id="gpu-temp-${i}">—</span> &nbsp;⚡ <span id="gpu-pow-${i}">—</span></span>
+      </div>
+      <div class="gpu-section-body">
+        <div class="gpu-pct-big" id="gpu-pct-${i}">—</div>
+        <div class="gpu-charts">
+          <div class="gpu-chart-wrap">
+            <div class="gpu-chart-label">USAGE</div>
+            <div class="gpu-chart-canvas"><canvas id="gpu-chart-${i}"></canvas></div>
+          </div>
+          <div class="gpu-chart-wrap">
+            <div class="gpu-chart-label">VRAM &nbsp;<span id="vram-text-${i}" style="color:var(--text)">—</span></div>
+            <div class="gpu-chart-canvas"><canvas id="vram-chart-${i}"></canvas></div>
           </div>
         </div>
-        <div class="metric-chart"><canvas id="gpu-chart-${i}"></canvas></div>
       </div>
-      <div class="vram-row">
-        <span class="vram-label">VRAM</span>
-        <div class="vram-bar-wrap"><div class="vram-bar-fill" id="vram-bar-${i}" style="width:0%"></div></div>
-        <span class="vram-label" id="vram-text-${i}">—</span>
-      </div>
-      <div class="metric-meta">
-        <div class="meta-pill">🌡 <span id="gpu-temp-${i}">—</span></div>
-        <div class="meta-pill">⚡ <span id="gpu-pow-${i}">—</span></div>
-      </div>`;
-    row.insertBefore(card, ramCard);
-    gpuCharts[i] = makeSparkline(`gpu-chart-${i}`, color, GPU_BG[i % GPU_BG.length]);
+    </div>`).join('');
+
+  card.innerHTML = `<div class="card-title">GPU</div>${sections}`;
+  row.insertBefore(card, ramCard);
+
+  for (let i = 0; i < count; i++) {
+    gpuCharts[i]  = makeSparkline(`gpu-chart-${i}`,  GPU_COLORS[i % GPU_COLORS.length], GPU_BG[i % GPU_BG.length]);
+    vramCharts[i] = makeSparkline(`vram-chart-${i}`, '#f59e0b', 'rgba(245,158,11,0.10)');
   }
 }
 
@@ -233,12 +234,11 @@ function updateMetrics(d) {
     }
   }
 
-  // GPU (array)
+  // GPU (array → combined card)
   if (d.gpu && d.gpu.length > 0) {
     if (!gpuCardsReady) initGpuCards(d.gpu.length);
     d.gpu.forEach((g, i) => {
       const p = g.usage ?? 0;
-      setGauge(`gpu-gauge-${i}`, p, GPU_COLORS[i % GPU_COLORS.length]);
       setText(`gpu-pct-${i}`,  `${p}%`, colorClass(p));
       setText(`gpu-temp-${i}`, g.temp       != null ? `${g.temp}°C` : '—');
       setText(`gpu-pow-${i}`,  g.power_draw != null ? `${g.power_draw.toFixed(0)}W` : '—');
@@ -246,11 +246,7 @@ function updateMetrics(d) {
 
       if (g.vram_total) {
         const vp = Math.round((g.vram_used / g.vram_total) * 100);
-        const bar = document.getElementById(`vram-bar-${i}`);
-        if (bar) {
-          bar.style.width = `${vp}%`;
-          bar.style.background = vp >= 85 ? 'var(--red)' : 'var(--amber)';
-        }
+        sparkPush(vramCharts[i], vp);
         setText(`vram-text-${i}`, `${fmtMB(g.vram_used)}/${fmtMB(g.vram_total)}`);
       }
     });
@@ -288,6 +284,12 @@ function updateMetrics(d) {
     const bar = document.getElementById('disk-bar');
     if (bar) { bar.style.width = `${pct}%`; bar.style.background = color; }
     setText('disk-used-text', `${fmtBytes(totalUsed)} / ${fmtBytes(totalSize)}`);
+  }
+
+  // Disk I/O
+  if (d.disk_io) {
+    setText('disk-rx', fmtBps(d.disk_io.rx_sec));
+    setText('disk-wx', fmtBps(d.disk_io.wx_sec));
   }
 
   // Load average
