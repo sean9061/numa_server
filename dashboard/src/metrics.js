@@ -116,16 +116,30 @@ async function getGpu() {
   for (const smiPath of NVIDIA_SMI_PATHS) {
     try {
       const { stdout } = await exec(smiPath, NV_ARGS, { timeout: 5000 });
-      const parts = stdout.trim().split(',').map(nv);
-      if (parts.length < 4 || parts[0] == null || parts[3] == null) continue;
+      const gpus = stdout.trim().split('\n')
+        .map(line => line.split(',').map(nv))
+        .filter(parts => parts.length >= 4 && parts[0] != null && parts[3] != null)
+        .map(parts => ({
+          usage:       parts[0],
+          mem_usage:   parts[1],
+          vram_used:   parts[2],
+          vram_total:  parts[3],
+          temp:        parts[4],
+          power_draw:  parts[5],
+          power_limit: parts[6],
+        }));
+      if (gpus.length === 0) continue;
+      if (gpus.length === 1) return gpus[0];
+      // Aggregate multiple GPUs
       return {
-        usage:       parts[0],
-        mem_usage:   parts[1],
-        vram_used:   parts[2],
-        vram_total:  parts[3],
-        temp:        parts[4],
-        power_draw:  parts[5],
-        power_limit: parts[6],
+        usage:       Math.round(gpus.reduce((s, g) => s + g.usage, 0) / gpus.length),
+        mem_usage:   Math.round(gpus.reduce((s, g) => s + g.mem_usage, 0) / gpus.length),
+        vram_used:   gpus.reduce((s, g) => s + g.vram_used, 0),
+        vram_total:  gpus.reduce((s, g) => s + g.vram_total, 0),
+        temp:        Math.round(gpus.reduce((s, g) => s + g.temp, 0) / gpus.length),
+        power_draw:  gpus.reduce((s, g) => s + (g.power_draw ?? 0), 0),
+        power_limit: gpus.reduce((s, g) => s + (g.power_limit ?? 0), 0),
+        gpu_count:   gpus.length,
       };
     } catch {
       // try next path
