@@ -202,6 +202,19 @@ async function getCpuPower() {
   }
 }
 
+// Disk I/O rates
+async function getDiskIO() {
+  try {
+    const stats = await si.fsStats();
+    return {
+      rx_sec: Math.round(stats.rx_sec ?? 0),
+      wx_sec: Math.round(stats.wx_sec ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Disk usage
 async function getDisk() {
   try {
@@ -246,6 +259,7 @@ export async function collectMetrics() {
     getDisk(),       // 6
     getLoadAvg(),    // 7
     getUptime(),     // 8
+    getDiskIO(),     // 9
   ]);
 
   const v = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
@@ -257,6 +271,7 @@ export async function collectMetrics() {
     ram:      v(1),
     network:  v(2) ?? { rx_sec: 0, tx_sec: 0, iface: 'unknown' },
     disk:     v(6) ?? [],
+    disk_io:  v(9),
     load:     v(7),
     uptime:   v(8),
     timestamp: Date.now(),
