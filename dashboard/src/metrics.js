@@ -7,27 +7,48 @@ const exec = promisify(execFile);
 
 // State for delta calculations
 let prevCpuStats = null;
+let prevCoreStats = [];
 let prevNetStats = null;
 let prevNetTime = null;
 let prevRaplEnergy = null;
 let prevRaplTime = null;
 
-// CPU usage from /proc/stat
+// CPU usage from /proc/stat (aggregate + per-core)
 async function getCpuUsage() {
   const content = await readFile('/proc/stat', 'utf-8');
-  const line = content.split('\n')[0].split(/\s+/).slice(1).map(Number);
-  const [user, nice, sys, idle, iowait, irq, softirq, steal] = line;
-  const total = user + nice + sys + idle + iowait + irq + softirq + (steal ?? 0);
-  const busy = total - idle - (iowait ?? 0);
+  const lines = content.split('\n');
 
-  let usage = null;
-  if (prevCpuStats) {
-    const dt = total - prevCpuStats.total;
-    const db = busy - prevCpuStats.busy;
-    usage = dt > 0 ? Math.min(100, Math.round((db / dt) * 100)) : 0;
-  }
-  prevCpuStats = { total, busy };
-  return usage;
+  const parseStat = (parts) => {
+    const [user, nice, sys, idle, iowait, irq, softirq, steal] = parts;
+    const total = user + nice + sys + idle + iowait + irq + softirq + (steal ?? 0);
+    const busy = total - idle - (iowait ?? 0);
+    return { total, busy };
+  };
+
+  const calcUsage = (cur, prev) => {
+    if (!prev) return null;
+    const dt = cur.total - prev.total;
+    const db = cur.busy - prev.busy;
+    return dt > 0 ? Math.min(100, Math.round((db / dt) * 100)) : 0;
+  };
+
+  // Aggregate
+  const aggParts = lines[0].split(/\s+/).slice(1).map(Number);
+  const agg = parseStat(aggParts);
+  const usage = calcUsage(agg, prevCpuStats);
+  prevCpuStats = agg;
+
+  // Per-core
+  const coreLines = lines.filter(l => /^cpu\d/.test(l));
+  const cores = coreLines.map((line, i) => {
+    const parts = line.split(/\s+/).slice(1).map(Number);
+    const cur = parseStat(parts);
+    const coreUsage = calcUsage(cur, prevCoreStats[i]);
+    prevCoreStats[i] = cur;
+    return coreUsage;
+  });
+
+  return { usage, cores };
 }
 
 // Memory from /proc/meminfo
@@ -129,18 +150,7 @@ async function getGpu() {
           power_limit: parts[6],
         }));
       if (gpus.length === 0) continue;
-      if (gpus.length === 1) return gpus[0];
-      // Aggregate multiple GPUs
-      return {
-        usage:       Math.round(gpus.reduce((s, g) => s + g.usage, 0) / gpus.length),
-        mem_usage:   Math.round(gpus.reduce((s, g) => s + g.mem_usage, 0) / gpus.length),
-        vram_used:   gpus.reduce((s, g) => s + g.vram_used, 0),
-        vram_total:  gpus.reduce((s, g) => s + g.vram_total, 0),
-        temp:        Math.round(gpus.reduce((s, g) => s + g.temp, 0) / gpus.length),
-        power_draw:  gpus.reduce((s, g) => s + (g.power_draw ?? 0), 0),
-        power_limit: gpus.reduce((s, g) => s + (g.power_limit ?? 0), 0),
-        gpu_count:   gpus.length,
-      };
+      return gpus; // always return array
     } catch {
       // try next path
     }
@@ -240,9 +250,10 @@ export async function collectMetrics() {
 
   const v = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
 
+  const cpuResult = v(0);
   return {
-    cpu:      { usage: v(0), temp: v(4), power: v(5) },
-    gpu:      v(3),
+    cpu:      { usage: cpuResult?.usage ?? null, cores: cpuResult?.cores ?? [], temp: v(4), power: v(5) },
+    gpu:      v(3) ?? [],
     ram:      v(1),
     network:  v(2) ?? { rx_sec: 0, tx_sec: 0, iface: 'unknown' },
     disk:     v(6) ?? [],

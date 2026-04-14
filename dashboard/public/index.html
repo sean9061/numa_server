@@ -58,7 +58,7 @@
     .ws-label { font-size: 11px; color: var(--dim); }
 
     /* ── Row layouts ── */
-    #row-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--gap); }
+    #row-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
     #row-charts  { display: grid; grid-template-columns: 1.6fr 0.8fr 0.6fr 1.3fr; gap: var(--gap); }
     #row-bottom  { display: grid; grid-template-columns: 1fr 2.2fr; gap: var(--gap); }
 
@@ -100,6 +100,12 @@
     }
     .meta-pill { display: flex; align-items: center; gap: 3px; font-size: 10px; color: var(--dim); }
     .meta-pill span { color: var(--text); font-weight: 500; }
+
+    /* ── VRAM bar (inside GPU card) ── */
+    .vram-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-shrink: 0; }
+    .vram-bar-wrap { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .vram-bar-fill { height: 100%; border-radius: 3px; background: var(--amber); transition: width 0.5s ease, background 0.3s; }
+    .vram-label { font-size: 10px; color: var(--dim); white-space: nowrap; }
 
     /* ── Network card ── */
     .net-chart-wrap { flex: 1; min-height: 0; position: relative; margin-top: 6px; }
@@ -234,30 +240,10 @@
       </div>
     </div>
 
-    <!-- GPU -->
-    <div class="card">
-      <div class="card-title">GPU</div>
-      <div class="metric-body">
-        <div class="metric-gauge">
-          <svg class="gauge-svg" viewBox="0 0 160 100">
-            <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
-            <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="gpu-gauge" stroke="var(--purple)" stroke-dasharray="0 204.2"/>
-          </svg>
-          <div class="gauge-center-text">
-            <div class="gauge-pct" id="gpu-pct">—</div>
-            <div class="gauge-sub">USAGE</div>
-          </div>
-        </div>
-        <div class="metric-chart"><canvas id="gpu-chart"></canvas></div>
-      </div>
-      <div class="metric-meta">
-        <div class="meta-pill">🌡 <span id="gpu-temp">—</span></div>
-        <div class="meta-pill">⚡ <span id="gpu-pow">—</span></div>
-      </div>
-    </div>
+    <!-- GPU cards injected dynamically by app.js -->
 
     <!-- RAM -->
-    <div class="card">
+    <div class="card" id="ram-card">
       <div class="card-title">RAM</div>
       <div class="metric-body">
         <div class="metric-gauge">
@@ -278,27 +264,6 @@
       </div>
     </div>
 
-    <!-- VRAM -->
-    <div class="card">
-      <div class="card-title">VRAM</div>
-      <div class="metric-body">
-        <div class="metric-gauge">
-          <svg class="gauge-svg" viewBox="0 0 160 100">
-            <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
-            <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="vram-gauge" stroke="var(--amber)" stroke-dasharray="0 204.2"/>
-          </svg>
-          <div class="gauge-center-text">
-            <div class="gauge-pct" id="vram-pct">—</div>
-            <div class="gauge-sub">USED</div>
-          </div>
-        </div>
-        <div class="metric-chart"><canvas id="vram-chart"></canvas></div>
-      </div>
-      <div class="metric-meta">
-        <div class="meta-pill">Used <span id="vram-used">—</span></div>
-        <div class="meta-pill">Total <span id="vram-total">—</span></div>
-      </div>
-    </div>
 
   </div>
 
