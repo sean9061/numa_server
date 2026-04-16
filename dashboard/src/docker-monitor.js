@@ -1,4 +1,6 @@
 import Dockerode from 'dockerode';
+import { readdir, stat, open } from 'fs/promises';
+import { join } from 'path';
 
 const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 
@@ -41,10 +43,13 @@ export async function getContainerStats(nameOrId) {
   }
 }
 
-// ── Web request tracking (NPM access logs, server-side) ───────────────────────
+// ── Web request tracking (NPM access log files, server-side) ─────────────────
+
+const NPM_LOG_DIR = process.env.NPM_LOG_DIR ?? '/npm-logs';
+const HTTP_METHODS_RE = /"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
 
 let webReqWindow = []; // timestamps of HTTP requests (last 60 minutes)
-const HTTP_METHODS_RE = /"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
+const filePositions = new Map(); // filepath -> byte offset
 
 export function getWebStats() {
   const now = Date.now();
@@ -54,47 +59,61 @@ export function getWebStats() {
   };
 }
 
-export function startNpmTracking() {
-  docker.listContainers({ all: false }, (err, list) => {
-    if (err || !list) {
-      setTimeout(startNpmTracking, 15_000);
-      return;
+async function tailNewLines(filepath) {
+  try {
+    const s = await stat(filepath);
+    const prevPos = filePositions.get(filepath);
+
+    // First visit: start from end (don't replay old logs)
+    if (prevPos === undefined) {
+      filePositions.set(filepath, s.size);
+      return [];
     }
 
-    const npm = list.find(c => c.Image.includes('nginx-proxy-manager'));
-    if (!npm) {
-      console.log('[web-tracking] NPM container not found, retrying in 30s');
-      setTimeout(startNpmTracking, 30_000);
-      return;
+    if (s.size <= prevPos) {
+      // File was truncated/rotated — reset position
+      filePositions.set(filepath, s.size);
+      return [];
     }
 
-    docker.getContainer(npm.Id).logs(
-      { follow: true, stdout: true, stderr: true, tail: 0 },
-      (err, stream) => {
-        if (err || !stream) {
-          console.error('[web-tracking] Log attach failed:', err?.message);
-          setTimeout(startNpmTracking, 15_000);
-          return;
-        }
+    const length = s.size - prevPos;
+    const fh = await open(filepath, 'r');
+    const buf = Buffer.alloc(length);
+    await fh.read(buf, 0, length, prevPos);
+    await fh.close();
 
-        const countLine = (chunk) => {
-          const now = Date.now();
-          for (const line of chunk.toString('utf-8').split('\n')) {
-            if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
-          }
-          const cutoff = now - 3_600_000;
-          if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
-            webReqWindow = webReqWindow.filter(t => t > cutoff);
-          }
-        };
+    filePositions.set(filepath, s.size);
+    return buf.toString('utf-8').split('\n').filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
-        docker.modem.demuxStream(stream, { write: countLine }, { write: countLine });
+async function pollNpmLogs() {
+  try {
+    const files = await readdir(NPM_LOG_DIR);
+    const accessLogs = files.filter(f => f.endsWith('_access.log'));
 
-        stream.on('end',   () => { console.log('[web-tracking] stream ended, reconnecting'); setTimeout(startNpmTracking, 5_000); });
-        stream.on('error', () => setTimeout(startNpmTracking, 5_000));
+    const now = Date.now();
+    for (const file of accessLogs) {
+      const lines = await tailNewLines(join(NPM_LOG_DIR, file));
+      for (const line of lines) {
+        if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
       }
-    );
-  });
+    }
+
+    const cutoff = now - 3_600_000;
+    if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
+      webReqWindow = webReqWindow.filter(t => t > cutoff);
+    }
+  } catch {
+    // log dir not yet accessible, silently skip
+  }
+}
+
+export function startNpmTracking() {
+  pollNpmLogs();
+  setInterval(pollNpmLogs, 5_000);
 }
 
 // ── Container log streaming ────────────────────────────────────────────────────
