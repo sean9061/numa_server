@@ -46,7 +46,7 @@ export async function getContainerStats(nameOrId) {
 // ── Web request tracking (NPM access log files, server-side) ─────────────────
 
 const NPM_LOG_DIR = process.env.NPM_LOG_DIR ?? '/npm-logs';
-const HTTP_METHODS_RE = /"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
+const HTTP_METHODS_RE = /\s(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
 
 let webReqWindow = []; // timestamps of HTTP requests (last 60 minutes)
 const filePositions = new Map(); // filepath -> byte offset

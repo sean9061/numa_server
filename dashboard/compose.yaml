@@ -17,6 +17,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro   # Docker stats & logs
       - ./data:/app/data                               # Persistent metrics history
       - ../proxy/data/logs:/npm-logs:ro                # NPM access logs for web tracking
+    cap_add:
+      - SYS_RAWIO                                      # Intel RAPL powercap access
     security_opt:
       - no-new-privileges:true
     deploy:
