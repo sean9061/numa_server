@@ -145,6 +145,10 @@ function rebuildCharts() {
     [1, pad(entries.map(e => e.net_tx ?? 0), 0)],
   ]);
   resize(webChart, [[0, pad(entries.map(e => e.web_rpm ?? 0), 0)]]);
+  resize(diskIOChart, [
+    [0, pad(entries.map(e => e.disk_rx ?? 0), 0)],
+    [1, pad(entries.map(e => e.disk_wx ?? 0), 0)],
+  ]);
   resize(powerChart, [
     [0, pad(entries.map(e => e.pow_total))],
     [1, pad(entries.map(e => e.pow_cpu))],
@@ -222,6 +226,23 @@ function makeWebChart(canvasId) {
   });
 }
 
+function makeDiskIOChart(canvasId) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [
+        { data: Array(HIST).fill(0), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true },
+        { data: Array(HIST).fill(0), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true },
+      ],
+    },
+    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
+      y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
+           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 3,
+                    callback: v => fmtBps(v) }, border: { display: false } } } },
+  });
+}
+
 function makePowerChart(canvasId) {
   const mk = (color, bg, width = 1.5) => ({
     data: Array(HIST).fill(null),
@@ -265,8 +286,9 @@ const cpuChart  = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)')
 const ramChart  = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
 const netChart  = makeNetChart('net-chart');
 const webChart  = makeWebChart('web-chart');
-const diskChart  = makeDiskDonut('disk-chart');
-const powerChart = makePowerChart('power-chart');
+const diskChart   = makeDiskDonut('disk-chart');
+const diskIOChart = makeDiskIOChart('disk-io-chart');
+const powerChart  = makePowerChart('power-chart');
 
 const DISK_COLORS     = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];
 const DISK_COLORS_DIM = ['rgba(59,130,246,0.18)', 'rgba(129,140,248,0.18)', 'rgba(34,197,94,0.18)', 'rgba(245,158,11,0.18)', 'rgba(239,68,68,0.18)'];
@@ -442,6 +464,9 @@ function updateMetrics(d) {
   if (d.disk_io) {
     setText('disk-rx', fmtBps(d.disk_io.rx_sec));
     setText('disk-wx', fmtBps(d.disk_io.wx_sec));
+    sparkPush(diskIOChart, d.disk_io.rx_sec ?? 0, 0);
+    sparkPush(diskIOChart, d.disk_io.wx_sec ?? 0, 1);
+    diskIOChart.update('none');
   }
 
   // Web requests (merged into metrics message)
