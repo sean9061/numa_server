@@ -89,7 +89,6 @@
       gap: var(--gap);
     }
     #panel-server   { display: grid; grid-template-rows: 1fr 1fr; }
-    #panel-services { display: none; grid-template-columns: 1fr 1.6fr; }
 
     /* ── Row layouts: min-height:0 lets them shrink to their 1fr track ── */
     #row-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height: 0; }
@@ -231,109 +230,116 @@
     .log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
     .log-line.err { color: #f87171; }
 
-    /* ── Services panel ── */
-    .svc-list { flex: 1; display: flex; flex-direction: column; gap: 5px;
-      margin-top: 7px; overflow-y: auto; }
-
-    .svc-card {
-      flex-shrink: 0;
-      padding: 9px 10px;
-      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
-      cursor: pointer; transition: border-color 0.15s;
-    }
-    .svc-card:hover { border-color: var(--blue); }
-    .svc-card.selected { border-color: var(--blue); background: #0f1d35; }
-
-    .svc-card-header {
-      display: flex; align-items: center; gap: 7px; margin-bottom: 4px;
-    }
-    .svc-card-name { font-size: 12px; font-weight: 600; flex: 1; }
+    /* ── State badge (shared) ── */
     .svc-state-badge {
       font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
-      padding: 2px 6px; border-radius: 4px;
+      padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
     }
-    .svc-state-badge.running { background: rgba(34,197,94,0.15); color: var(--green); }
+    .svc-state-badge.running { background: rgba(34,197,94,0.15);  color: var(--green); }
     .svc-state-badge.exited  { background: rgba(239,68,68,0.15);  color: var(--red); }
     .svc-state-badge.paused  { background: rgba(245,158,11,0.15); color: var(--amber); }
     .svc-state-badge.other   { background: rgba(78,98,130,0.15);  color: var(--dim); }
 
-    .svc-card-meta {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 10px; color: var(--dim); margin-bottom: 5px;
-    }
-    .svc-card-meta-sep { color: var(--border); }
-
-    .svc-card-stats {
-      display: flex; gap: 10px;
-    }
-    .svc-stat-chip {
-      display: flex; align-items: center; gap: 4px;
-      font-size: 10px; color: var(--dim);
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 4px; padding: 2px 6px;
-    }
-    .svc-stat-chip span { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-
-    .svc-card-footer {
-      display: flex; align-items: center; justify-content: flex-end;
-      margin-top: 6px; gap: 6px;
-    }
+    /* ── Open link button (shared) ── */
     .svc-link-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 5px; font-size: 10px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 600;
       text-decoration: none;
-      background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3);
+      background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.3);
       color: var(--blue); transition: all 0.15s;
     }
     .svc-link-btn:hover { background: rgba(59,130,246,0.22); border-color: var(--blue); }
 
-    /* ── Service detail column ── */
-    .svc-detail-col {
-      display: flex; flex-direction: column;
+    /* ── Services panel — grid layout ── */
+    #panel-services { display: none; flex-direction: column; }
+
+    .svc-grid {
+      flex: 1; min-height: 0; overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+      gap: var(--gap);
+      align-content: start;
+    }
+
+    /* ── Service card ── */
+    .svc2-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-      padding: 10px 12px; overflow: hidden; min-height: 0;
+      padding: 11px 12px; display: flex; flex-direction: column; gap: 8px;
+      transition: border-color 0.15s;
     }
-    .svc-detail-header {
-      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
-    }
-    .svc-detail-name {
-      font-size: 15px; font-weight: 700; flex: 1;
-    }
-    .svc-detail-actions { display: flex; gap: 6px; }
-    .svc-detail-action-btn {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
-      text-decoration: none; cursor: pointer; border: none;
-      background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3);
-      color: var(--blue); transition: all 0.15s;
-    }
-    .svc-detail-action-btn:hover { background: rgba(59,130,246,0.22); border-color: var(--blue); }
+    .svc2-card:hover { border-color: rgba(59,130,246,0.35); }
 
-    .svc-detail-meta {
-      display: flex; gap: 12px; margin-top: 6px; flex-shrink: 0;
+    .svc2-header { display: flex; align-items: center; gap: 7px; }
+    .svc2-name {
+      font-size: 12px; font-weight: 600; flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .svc2-meta {
       font-size: 10px; color: var(--dim);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .svc-detail-stats {
-      display: flex; gap: 8px; margin-top: 6px; flex-shrink: 0;
-    }
-    .svc-detail-stat-chip {
-      display: flex; align-items: center; gap: 4px;
-      font-size: 11px; color: var(--dim);
-      background: var(--surface2); border: 1px solid var(--border);
-      border-radius: 5px; padding: 3px 8px;
-    }
-    .svc-detail-stat-chip span { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-    .svc-detail-divider { height: 1px; background: var(--border); margin: 8px 0; flex-shrink: 0; }
+    /* Resource bars */
+    .svc2-bars { display: flex; flex-direction: column; gap: 5px; }
+    .svc2-bar-row { display: flex; align-items: center; gap: 6px; }
+    .svc2-bar-label { font-size: 9px; color: var(--dim); width: 28px; flex-shrink: 0; }
+    .svc2-bar-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .svc2-bar-fill  { height: 100%; border-radius: 2px; transition: width 0.4s ease, background 0.3s; }
+    .svc2-bar-val   {
+      font-size: 9px; color: var(--dim); width: 90px; text-align: right; flex-shrink: 0;
+      font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .svc2-disk-io {
+      flex: 1; font-size: 9px; color: var(--dim); text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .svc2-disk-io span { color: var(--text); font-weight: 500; }
 
-    .svc-detail-log-title {
+    /* Action bar */
+    .svc2-actions { display: flex; align-items: center; gap: 4px; }
+    .svc2-spacer  { flex: 1; }
+
+    .svc2-ctrl-btn {
+      width: 27px; height: 24px; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 5px; cursor: pointer;
+      background: transparent; border: 1px solid var(--border); color: var(--dim);
+      transition: all 0.15s;
+    }
+    .svc2-ctrl-btn:hover:not(:disabled) { border-color: var(--blue); color: var(--text); }
+    .svc2-ctrl-btn:disabled { opacity: 0.28; cursor: default; }
+
+    .svc2-log-btn {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 600;
+      cursor: pointer; background: transparent;
+      border: 1px solid var(--border); color: var(--dim); transition: all 0.15s;
+    }
+    .svc2-log-btn:hover, .svc2-log-btn.active {
+      background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.4); color: var(--blue);
+    }
+
+    /* ── Log drawer ── */
+    .svc-log-drawer {
+      flex-shrink: 0; height: 185px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      flex-direction: column; overflow: hidden;
+    }
+    .svc-log-drawer-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .svc-log-drawer-title {
       font-size: 10px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--dim); flex-shrink: 0; margin-bottom: 5px;
+      letter-spacing: 0.06em; color: var(--dim);
     }
-
-    .svc-detail-empty {
-      flex: 1; display: flex; align-items: center; justify-content: center;
-      color: var(--dim); font-size: 13px;
+    .svc-log-close {
+      background: transparent; border: none; color: var(--dim); cursor: pointer;
+      font-size: 15px; line-height: 1; padding: 0 2px; transition: color 0.15s;
+    }
+    .svc-log-close:hover { color: var(--red); }
+    .svc-log-drawer .log-view {
+      flex: 1; min-height: 0; border: none; border-radius: 0; background: transparent; margin: 0;
     }
 
     /* Scrollbar */
@@ -578,19 +584,18 @@
   <!-- Panel: Services -->
   <div id="panel-services">
 
-    <!-- Left: Service list -->
-    <div class="card">
-      <div class="card-title">SERVICES</div>
-      <div class="svc-list" id="svc-cards-list">
-        <div style="color:var(--dim);font-size:12px">Loading...</div>
-      </div>
+    <!-- Card grid -->
+    <div class="svc-grid" id="svc-grid">
+      <div style="color:var(--dim);font-size:12px;padding:8px">Loading...</div>
     </div>
 
-    <!-- Right: Service detail -->
-    <div class="svc-detail-col" id="svc-detail-col">
-      <div class="svc-detail-empty" id="svc-detail-empty">
-        Select a service to view details and logs
+    <!-- Log drawer (hidden until a service's Logs button is clicked) -->
+    <div class="svc-log-drawer" id="svc-log-drawer" style="display:none">
+      <div class="svc-log-drawer-hdr">
+        <span class="svc-log-drawer-title" id="svc-log-drawer-title">LOGS</span>
+        <button class="svc-log-close" onclick="closeLogs()">✕</button>
       </div>
+      <div class="log-view" id="svc-log-view"></div>
     </div>
 
   </div><!-- /panel-services -->
@@ -598,6 +603,6 @@
   </div><!-- /panel-wrap -->
 
 </div>
-<script src="/app.js?v=8"></script>
+<script src="/app.js?v=9"></script>
 </body>
 </html>

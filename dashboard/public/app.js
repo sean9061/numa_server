@@ -22,7 +22,7 @@ let activePanel = 'server';
 function switchPanel(name) {
   activePanel = name;
   document.getElementById('panel-server').style.display   = name === 'server'   ? 'grid' : 'none';
-  document.getElementById('panel-services').style.display = name === 'services' ? 'grid' : 'none';
+  document.getElementById('panel-services').style.display = name === 'services' ? 'flex' : 'none';
   document.querySelectorAll('.pt-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.panel === name)
   );
@@ -505,58 +505,15 @@ const SERVICE_LINKS = {
   'ollama':              'https://ollama.s3an.dev',
 };
 
-// Container stats from container_stats WebSocket messages
 const containerStats = {};
-
 let currentContainers = [];
-let selectedService = null;
+let selectedService   = null;
 
-function updateDocker(containers) {
-  currentContainers = containers;
-  renderServiceCards(containers);
-  // Update detail panel stats if a service is selected
-  if (selectedService) {
-    const c = containers.find(x => x.name === selectedService);
-    if (c) updateDetailMeta(c);
-  }
-}
-
-function renderServiceCards(containers) {
-  const list = document.getElementById('svc-cards-list');
-  if (!containers.length) {
-    list.innerHTML = '<div style="color:var(--dim);font-size:12px">No containers found</div>';
-    return;
-  }
-
-  list.innerHTML = containers.map(c => {
-    const dotClass   = dotClassFor(c.state);
-    const badgeClass = c.state === 'running' ? 'running'
-                     : c.state === 'exited'  ? 'exited'
-                     : c.state === 'paused'  ? 'paused' : 'other';
-    const link = SERVICE_LINKS[c.name];
-    const stats = containerStats[c.name];
-    const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
-    const memVal = stats?.mem_used != null ? fmtBytes(stats.mem_used)  : '—';
-    const selected = c.name === selectedService ? ' selected' : '';
-    return `<div class="svc-card${selected}" data-name="${c.name}" onclick="selectService('${c.name}')">
-      <div class="svc-card-header">
-        <span class="status-dot ${dotClass}"></span>
-        <span class="svc-card-name">${c.name}</span>
-        <span class="svc-state-badge ${badgeClass}">${c.state}</span>
-      </div>
-      <div class="svc-card-meta">
-        <span>${c.image}</span>
-        <span class="svc-card-meta-sep">·</span>
-        <span>${c.status}</span>
-      </div>
-      <div class="svc-card-stats">
-        <div class="svc-stat-chip" id="svc-cpu-chip-${c.name}">CPU <span>${cpuVal}</span></div>
-        <div class="svc-stat-chip" id="svc-mem-chip-${c.name}">MEM <span>${memVal}</span></div>
-      </div>
-      ${link ? `<div class="svc-card-footer"><a class="svc-link-btn" href="${link}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open ↗</a></div>` : ''}
-    </div>`;
-  }).join('');
-}
+// SVG icons for control buttons
+const SVG_START   = `<svg width="10" height="10" viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9" fill="currentColor"/></svg>`;
+const SVG_STOP    = `<svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" rx="1" fill="currentColor"/></svg>`;
+const SVG_RESTART = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>`;
+const SVG_LOGS    = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="15" y2="18"/></svg>`;
 
 function dotClassFor(state) {
   return state === 'running' ? 'status-running'
@@ -564,94 +521,135 @@ function dotClassFor(state) {
        : state === 'paused'  ? 'status-paused' : 'status-other';
 }
 
-function updateContainerStats(statsArray) {
-  // statsArray: [{ name, stats: { cpu, mem_used, mem_limit, mem_percent } }]
-  statsArray.forEach(s => { containerStats[s.name] = s.stats; });
-  // Update chips in service cards
-  statsArray.forEach(({ name, stats }) => {
-    const cpuChip = document.getElementById(`svc-cpu-chip-${name}`);
-    const memChip = document.getElementById(`svc-mem-chip-${name}`);
-    if (cpuChip) cpuChip.innerHTML = `CPU <span>${stats.cpu != null ? stats.cpu.toFixed(1) + '%' : '—'}</span>`;
-    if (memChip) memChip.innerHTML = `MEM <span>${stats.mem_used != null ? fmtBytes(stats.mem_used) : '—'}</span>`;
-  });
-  // Update detail panel stats if showing
-  if (selectedService) {
-    const s = containerStats[selectedService];
-    if (s) {
-      const detailCpu = document.getElementById('svc-detail-cpu');
-      const detailMem = document.getElementById('svc-detail-mem');
-      if (detailCpu) detailCpu.textContent = s.cpu != null ? `${s.cpu.toFixed(1)}%` : '—';
-      if (detailMem) detailMem.textContent = s.mem_used != null
-        ? `${fmtBytes(s.mem_used)}${s.mem_limit ? ' / ' + fmtBytes(s.mem_limit) : ''}` : '—';
-    }
-  }
+function badgeClassFor(state) {
+  return state === 'running' ? 'running' : state === 'exited' ? 'exited' : state === 'paused' ? 'paused' : 'other';
 }
 
-// ── Service selection & detail panel ─────────────────────────────────────────
-function selectService(name) {
-  // Update card selection state
-  document.querySelectorAll('.svc-card').forEach(el => {
-    el.classList.toggle('selected', el.dataset.name === name);
-  });
-
-  selectedService = name;
-  const c = currentContainers.find(x => x.name === name);
-  renderDetailPanel(c);
-
-  // Subscribe to logs
-  ws?.send(JSON.stringify({ type: 'subscribe_logs', container: name }));
+function updateDocker(containers) {
+  currentContainers = containers;
+  renderServiceGrid(containers);
 }
 
-function renderDetailPanel(c) {
-  const col = document.getElementById('svc-detail-col');
-  if (!c) {
-    col.innerHTML = '<div class="svc-detail-empty">Service not found</div>';
+function renderServiceGrid(containers) {
+  const grid = document.getElementById('svc-grid');
+  if (!containers.length) {
+    grid.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px">No containers found</div>';
     return;
   }
 
-  const link = SERVICE_LINKS[c.name];
-  const dotClass = dotClassFor(c.state);
-  const badgeClass = c.state === 'running' ? 'running'
-                   : c.state === 'exited'  ? 'exited'
-                   : c.state === 'paused'  ? 'paused' : 'other';
-  const stats = containerStats[c.name];
-  const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
-  const memVal = stats?.mem_used != null
-    ? `${fmtBytes(stats.mem_used)}${stats.mem_limit ? ' / ' + fmtBytes(stats.mem_limit) : ''}` : '—';
+  grid.innerHTML = containers.map(c => {
+    const link      = SERVICE_LINKS[c.name];
+    const stats     = containerStats[c.name];
+    const isRunning = c.state === 'running';
+    const cpuPct    = stats?.cpu ?? 0;
+    const memPct    = stats?.mem_percent ?? 0;
+    const cpuVal    = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
+    const memVal    = stats?.mem_used != null ? fmtBytes(stats.mem_used)  : '—';
+    const memTot    = stats?.mem_total != null ? ` / ${fmtBytes(stats.mem_total)}` : '';
+    const diskR     = stats?.disk_r_sec != null ? fmtBps(stats.disk_r_sec) : '—';
+    const diskW     = stats?.disk_w_sec != null ? fmtBps(stats.disk_w_sec) : '—';
+    const cpuColor  = cpuPct >= 85 ? 'var(--red)' : cpuPct >= 65 ? 'var(--amber)' : 'var(--blue)';
+    const memColor  = memPct >= 85 ? 'var(--red)' : memPct >= 65 ? 'var(--amber)' : 'var(--green)';
+    const logActive = selectedService === c.name ? ' active' : '';
 
-  col.innerHTML = `
-    <div class="svc-detail-header">
-      <span class="status-dot ${dotClass}" style="width:8px;height:8px"></span>
-      <span class="svc-detail-name">${c.name}</span>
-      <span class="svc-state-badge ${badgeClass}" style="font-size:10px">${c.state}</span>
-      <div class="header-spacer"></div>
-      <div class="svc-detail-actions">
-        ${link ? `<a class="svc-detail-action-btn" href="${link}" target="_blank" rel="noopener">Open ↗</a>` : ''}
+    return `<div class="svc2-card" data-name="${c.name}">
+      <div class="svc2-header">
+        <span class="status-dot ${dotClassFor(c.state)}"></span>
+        <span class="svc2-name">${c.name}</span>
+        <span class="svc-state-badge ${badgeClassFor(c.state)}">${c.state}</span>
       </div>
-    </div>
-    <div class="svc-detail-meta">
-      <span>${c.image}</span>
-      <span>·</span>
-      <span>${c.status}</span>
-    </div>
-    <div class="svc-detail-stats">
-      <div class="svc-detail-stat-chip">CPU <span id="svc-detail-cpu">${cpuVal}</span></div>
-      <div class="svc-detail-stat-chip">MEM <span id="svc-detail-mem">${memVal}</span></div>
-    </div>
-    <div class="svc-detail-divider"></div>
-    <div class="svc-detail-log-title">LOGS</div>
-    <div class="log-view" id="svc-log-view"><span style="color:var(--dim)">Loading logs...</span></div>
-  `;
+      <div class="svc2-meta">${c.image} · ${c.status}</div>
+      <div class="svc2-bars">
+        <div class="svc2-bar-row">
+          <span class="svc2-bar-label">CPU</span>
+          <div class="svc2-bar-track"><div class="svc2-bar-fill" id="svc2-cpu-bar-${c.name}" style="width:${Math.min(100,cpuPct)}%;background:${cpuColor}"></div></div>
+          <span class="svc2-bar-val" id="svc2-cpu-val-${c.name}">${cpuVal}</span>
+        </div>
+        <div class="svc2-bar-row">
+          <span class="svc2-bar-label">MEM</span>
+          <div class="svc2-bar-track"><div class="svc2-bar-fill" id="svc2-mem-bar-${c.name}" style="width:${Math.min(100,memPct)}%;background:${memColor}"></div></div>
+          <span class="svc2-bar-val" id="svc2-mem-val-${c.name}">${memVal}${memTot}</span>
+        </div>
+        <div class="svc2-bar-row">
+          <span class="svc2-bar-label">DISK</span>
+          <div class="svc2-disk-io" id="svc2-disk-val-${c.name}">↓ <span>${diskR}</span>&ensp;↑ <span>${diskW}</span></div>
+        </div>
+      </div>
+      <div class="svc2-actions">
+        <button class="svc2-ctrl-btn" title="Start"   ${isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','start')">${SVG_START}</button>
+        <button class="svc2-ctrl-btn" title="Stop"    ${!isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','stop')">${SVG_STOP}</button>
+        <button class="svc2-ctrl-btn" title="Restart" ${!isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','restart')">${SVG_RESTART}</button>
+        <div class="svc2-spacer"></div>
+        <button class="svc2-log-btn${logActive}" onclick="toggleLogs('${c.name}')">${SVG_LOGS} Logs</button>
+        ${link ? `<a class="svc-link-btn" href="${link}" target="_blank" rel="noopener">↗ Open</a>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function updateDetailMeta(c) {
-  const badgeClass = c.state === 'running' ? 'running'
-                   : c.state === 'exited'  ? 'exited'
-                   : c.state === 'paused'  ? 'paused' : 'other';
-  const dot = document.querySelector('#svc-detail-col .status-dot');
-  if (dot) dot.className = `status-dot ${dotClassFor(c.state)}`;
-  const badge = document.querySelector('#svc-detail-col .svc-state-badge');
-  if (badge) { badge.className = `svc-state-badge ${badgeClass}`; badge.textContent = c.state; }
+function updateContainerStats(statsArray) {
+  statsArray.forEach(s => { containerStats[s.name] = s.stats; });
+  statsArray.forEach(({ name, stats }) => {
+    if (!stats) return;
+    const cpuPct   = stats.cpu ?? 0;
+    const memPct   = stats.mem_percent ?? 0;
+    const cpuColor = cpuPct >= 85 ? 'var(--red)' : cpuPct >= 65 ? 'var(--amber)' : 'var(--blue)';
+    const memColor = memPct >= 85 ? 'var(--red)' : memPct >= 65 ? 'var(--amber)' : 'var(--green)';
+
+    const cpuBar  = document.getElementById(`svc2-cpu-bar-${name}`);
+    const cpuVal  = document.getElementById(`svc2-cpu-val-${name}`);
+    const memBar  = document.getElementById(`svc2-mem-bar-${name}`);
+    const memVal  = document.getElementById(`svc2-mem-val-${name}`);
+    const diskVal = document.getElementById(`svc2-disk-val-${name}`);
+
+    if (cpuBar) { cpuBar.style.width = `${Math.min(100, cpuPct)}%`; cpuBar.style.background = cpuColor; }
+    if (cpuVal) cpuVal.textContent = stats.cpu != null ? `${stats.cpu.toFixed(1)}%` : '—';
+    if (memBar) { memBar.style.width = `${Math.min(100, memPct)}%`; memBar.style.background = memColor; }
+    if (memVal) {
+      const u = stats.mem_used  != null ? fmtBytes(stats.mem_used)  : '—';
+      const t = stats.mem_total != null ? ` / ${fmtBytes(stats.mem_total)}` : '';
+      memVal.textContent = u + t;
+    }
+    if (diskVal) {
+      const r = stats.disk_r_sec != null ? fmtBps(stats.disk_r_sec) : '—';
+      const w = stats.disk_w_sec != null ? fmtBps(stats.disk_w_sec) : '—';
+      diskVal.innerHTML = `↓ <span>${r}</span>&ensp;↑ <span>${w}</span>`;
+    }
+  });
+}
+
+function toggleLogs(name) {
+  if (selectedService === name) { closeLogs(); return; }
+
+  if (selectedService) ws?.send(JSON.stringify({ type: 'unsubscribe_logs', container: selectedService }));
+  selectedService = name;
+
+  const drawer = document.getElementById('svc-log-drawer');
+  drawer.style.display = 'flex';
+  document.getElementById('svc-log-drawer-title').textContent = `LOGS — ${name}`;
+  document.getElementById('svc-log-view').innerHTML = '<span style="color:var(--dim)">Loading...</span>';
+
+  document.querySelectorAll('.svc2-log-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.closest('.svc2-card')?.dataset.name === name)
+  );
+
+  ws?.send(JSON.stringify({ type: 'subscribe_logs', container: name }));
+}
+
+function closeLogs() {
+  if (selectedService) ws?.send(JSON.stringify({ type: 'unsubscribe_logs', container: selectedService }));
+  selectedService = null;
+  document.getElementById('svc-log-drawer').style.display = 'none';
+  document.querySelectorAll('.svc2-log-btn').forEach(btn => btn.classList.remove('active'));
+}
+
+async function svcControl(name, action) {
+  try {
+    const r = await fetch(`/api/containers/${encodeURIComponent(name)}/${action}`, { method: 'POST' });
+    if (!r.ok) console.error(`[svcControl] ${action} ${name}:`, (await r.json()).error);
+  } catch (err) {
+    console.error(`[svcControl] ${action} ${name}:`, err);
+  }
 }
 
 // ── Log streaming ──────────────────────────────────────────────────────────────

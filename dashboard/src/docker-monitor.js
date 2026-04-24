@@ -7,6 +7,9 @@ const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 // Active log stream handles per container
 const activeStreams = new Map();
 
+// Previous blkio values for rate calculation
+const prevBlkio = new Map(); // name -> { read, write, time }
+
 export async function listContainers() {
   const list = await docker.listContainers({ all: true });
   return list.map(c => ({
@@ -32,15 +35,40 @@ export async function getContainerStats(nameOrId) {
     const memUsed = stats.memory_stats.usage - (stats.memory_stats.stats?.cache ?? 0);
     const memLimit = stats.memory_stats.limit;
 
+    // Disk I/O rate from blkio_stats
+    const blkio = stats.blkio_stats?.io_service_bytes_recursive ?? [];
+    const readBytes  = blkio.filter(e => e.op === 'Read').reduce((s, e) => s + e.value, 0);
+    const writeBytes = blkio.filter(e => e.op === 'Write').reduce((s, e) => s + e.value, 0);
+    const now = Date.now();
+    const prev = prevBlkio.get(nameOrId);
+    let disk_r_sec = null, disk_w_sec = null;
+    if (prev) {
+      const dt = (now - prev.time) / 1000;
+      if (dt > 0) {
+        disk_r_sec = Math.max(0, Math.round((readBytes  - prev.read)  / dt));
+        disk_w_sec = Math.max(0, Math.round((writeBytes - prev.write) / dt));
+      }
+    }
+    prevBlkio.set(nameOrId, { read: readBytes, write: writeBytes, time: now });
+
     return {
       cpu: Math.round(cpuPercent * 10) / 10,
       mem_used: memUsed,
       mem_total: memLimit,
       mem_percent: memLimit > 0 ? Math.round((memUsed / memLimit) * 100) : 0,
+      disk_r_sec,
+      disk_w_sec,
     };
   } catch {
     return null;
   }
+}
+
+export async function containerAction(nameOrId, action) {
+  const c = docker.getContainer(nameOrId);
+  if (action === 'start')   await c.start();
+  if (action === 'stop')    await c.stop();
+  if (action === 'restart') await c.restart();
 }
 
 // ── Web request tracking (NPM access log files, server-side) ─────────────────
