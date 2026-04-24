@@ -14,7 +14,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 numa_server/
 ├── proxy/          — Nginx Proxy Manager + MariaDB (ports 80/443/81)
 ├── portfolio/      — Next.js 16 ポートフォリオ (see portfolio/CLAUDE.md)
-└── ollama_server/  — Ollama (LLM) + Open WebUI
+├── ollama_server/  — Ollama (LLM) + Open WebUI
+└── dashboard/      — サーバー監視ダッシュボード (Node.js + WebSocket)
 ```
 
 ## Docker Networks
@@ -23,7 +24,7 @@ numa_server/
 
 | ネットワーク | 接続サービス |
 |---|---|
-| `proxy_net` | Nginx Proxy Manager, Portfolio, Open WebUI |
+| `proxy_net` | Nginx Proxy Manager, Portfolio, Open WebUI, Dashboard |
 | `ollama_net` | Nginx Proxy Manager, Ollama, Open WebUI |
 
 **ネットワーク名は変更禁止。** 全サービスの `compose.yaml` に影響する。
@@ -46,6 +47,18 @@ numa_server/
 - `proxy_net` のみ接続 (`ollama_net` へは到達不可 — 意図的な分離)
 - ドメイン: `s3an.dev`
 
+### `dashboard/` — サーバー監視ダッシュボード
+- Node.js (Express + WebSocket) + vanilla JS フロントエンド
+- `proxy_net` のみ接続、ホストポート非公開
+- **2パネル構成:** SERVER（CPU/GPU/RAM/Network/Disk/Load/Web Requests）/ SERVICES（コンテナ一覧・ログ・リソース使用量）
+- メトリクス収集: `/proc/*`、`nvidia-smi`、Intel RAPL、`dockerode`
+- WebSocket でリアルタイム配信 (metrics: 2秒、docker/container_stats: 5秒)
+- メトリクス履歴は `dashboard/data/` に永続化（最大1時間分）
+- シークレット: `dashboard/.env` (`DASHBOARD_PASSWORD`, `JWT_SECRET`)
+- **コード変更後は要リビルド:** `docker compose build && docker compose up -d`
+- フロント変更時は `public/index.html` の `app.js?v=N` の `N` をインクリメントしてキャッシュバスト
+- `SERVICE_LINKS` (app.js) にコンテナ名→URLのマッピングをハードコード
+
 ## Infrastructure Commands
 
 **初回セットアップ:**
@@ -54,11 +67,12 @@ docker network create proxy_net
 docker network create ollama_net
 ```
 
-**起動順序 (初回): proxy → ollama_server → portfolio**
+**起動順序 (初回): proxy → ollama_server → portfolio → dashboard**
 ```bash
 cd proxy          && cp .env.example .env && docker compose up -d
 cd ollama_server  && cp .env.example .env && docker compose up -d
 cd portfolio      && docker compose up -d
+cd dashboard      && cp .env.example .env && docker compose up -d
 ```
 
 **Portfolio 開発 (ローカル):**
