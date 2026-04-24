@@ -613,3 +613,7 @@ function wsConnect() {
 }
 
 wsConnect();
+
+// ── Panel toggle wiring ───────────────────────────────────────────────────────
+document.getElementById('pt-server')  ?.addEventListener('click', () => switchPanel('server'));
+document.getElementById('pt-services')?.addEventListener('click', () => switchPanel('services'));
