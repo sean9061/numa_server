@@ -104,9 +104,13 @@ function pushHistory(d) {
     ram:     d.ram?.percent     ?? null,
     net_rx:  d.network?.rx_sec  ?? null,
     net_tx:  d.network?.tx_sec  ?? null,
-    disk_rx: d.disk_io?.rx_sec  ?? null,
-    disk_wx: d.disk_io?.wx_sec  ?? null,
-    web_rpm: d.web_rpm          ?? null,
+    disk_rx:   d.disk_io?.rx_sec  ?? null,
+    disk_wx:   d.disk_io?.wx_sec  ?? null,
+    web_rpm:   d.web_rpm          ?? null,
+    pow_total: d.power?.total     ?? null,
+    pow_cpu:   d.power?.cpu       ?? null,
+    pow_gpu:   d.power?.gpu       ?? null,
+    pow_dram:  d.power?.dram      ?? null,
   });
   if (historyBuffer.length > MAX_HIST) historyBuffer.shift();
 }
@@ -141,6 +145,12 @@ function rebuildCharts() {
     [1, pad(entries.map(e => e.net_tx ?? 0), 0)],
   ]);
   resize(webChart, [[0, pad(entries.map(e => e.web_rpm ?? 0), 0)]]);
+  resize(powerChart, [
+    [0, pad(entries.map(e => e.pow_total))],
+    [1, pad(entries.map(e => e.pow_cpu))],
+    [2, pad(entries.map(e => e.pow_gpu))],
+    [3, pad(entries.map(e => e.pow_dram))],
+  ]);
 
   if (gpuCardsReady) {
     gpuCharts.forEach((chart, i) =>
@@ -212,6 +222,30 @@ function makeWebChart(canvasId) {
   });
 }
 
+function makePowerChart(canvasId) {
+  const mk = (color, bg, width = 1.5) => ({
+    data: Array(HIST).fill(null),
+    borderColor: color, backgroundColor: bg,
+    fill: false, borderWidth: width, spanGaps: true,
+  });
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [
+        mk('#e2e8f0', 'transparent', 2),            // Total (bright white, thicker)
+        mk('#3b82f6', 'rgba(59,130,246,0.08)'),     // CPU
+        mk('#f59e0b', 'rgba(245,158,11,0.08)'),     // GPU
+        mk('#818cf8', 'rgba(129,140,248,0.08)'),    // DRAM
+      ],
+    },
+    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
+      y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
+           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 4,
+                    callback: v => `${v}W` }, border: { display: false } } } },
+  });
+}
+
 function makeDiskDonut(canvasId) {
   return new Chart(document.getElementById(canvasId), {
     type: 'doughnut',
@@ -231,9 +265,11 @@ const cpuChart  = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)')
 const ramChart  = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
 const netChart  = makeNetChart('net-chart');
 const webChart  = makeWebChart('web-chart');
-const diskChart = makeDiskDonut('disk-chart');
+const diskChart  = makeDiskDonut('disk-chart');
+const powerChart = makePowerChart('power-chart');
 
-const DISK_COLORS = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];
+const DISK_COLORS     = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];
+const DISK_COLORS_DIM = ['rgba(59,130,246,0.18)', 'rgba(129,140,248,0.18)', 'rgba(34,197,94,0.18)', 'rgba(245,158,11,0.18)', 'rgba(239,68,68,0.18)'];
 
 function sparkPush(chart, value, dsIdx = 0) {
   chart.data.datasets[dsIdx].data.shift();
@@ -367,32 +403,38 @@ function updateMetrics(d) {
     netChart.update('none');
   }
 
-  // Disk — donut chart + legend
+  // Disk — donut chart + legend (per-disk used/free breakdown)
   if (d.disk && d.disk.length > 0) {
     const totalUsed = d.disk.reduce((s, x) => s + (x.used || 0), 0);
     const totalSize = d.disk.reduce((s, x) => s + (x.size || 0), 0);
-    const free = Math.max(0, totalSize - totalUsed);
     const pct  = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
 
-    diskChart.data.labels = [...d.disk.map(x => x.mount), 'Free'];
-    diskChart.data.datasets[0].data = [...d.disk.map(x => x.used), free];
-    diskChart.data.datasets[0].backgroundColor = [
-      ...d.disk.map((_, i) => DISK_COLORS[i % DISK_COLORS.length]),
-      'rgba(26,45,74,0.7)',
-    ];
+    const segLabels = [], segData = [], segColors = [];
+    d.disk.forEach((disk, i) => {
+      const free = Math.max(0, disk.size - disk.used);
+      segLabels.push(disk.mount + ' used', disk.mount + ' free');
+      segData.push(disk.used, free);
+      segColors.push(DISK_COLORS[i % DISK_COLORS.length], DISK_COLORS_DIM[i % DISK_COLORS_DIM.length]);
+    });
+
+    diskChart.data.labels = segLabels;
+    diskChart.data.datasets[0].data = segData;
+    diskChart.data.datasets[0].backgroundColor = segColors;
     diskChart.update('none');
 
     setText('disk-pct-text', `${pct}%`, colorClass(pct));
 
     const legend = document.getElementById('disk-legend');
     if (legend) {
-      legend.innerHTML = d.disk.map((disk, i) =>
-        `<div class="disk-legend-item">
+      legend.innerHTML = d.disk.map((disk, i) => {
+        const diskPct = disk.size > 0 ? Math.round((disk.used / disk.size) * 100) : 0;
+        return `<div class="disk-legend-item">
           <span class="disk-legend-dot" style="background:${DISK_COLORS[i % DISK_COLORS.length]}"></span>
           <span class="disk-legend-mount">${disk.mount}</span>
           <span class="disk-legend-val">${fmtBytes(disk.used)} / ${fmtBytes(disk.size)}</span>
-        </div>`
-      ).join('');
+          <span class="disk-legend-pct" style="color:${diskPct>=90?'var(--red)':diskPct>=75?'var(--amber)':'var(--dim)'}">${diskPct}%</span>
+        </div>`;
+      }).join('');
     }
   }
 
@@ -414,6 +456,20 @@ function updateMetrics(d) {
     setText('load-1',  d.load.m1?.toFixed(2)  ?? '—');
     setText('load-5',  d.load.m5?.toFixed(2)  ?? '—');
     setText('load-15', d.load.m15?.toFixed(2) ?? '—');
+  }
+
+  // Power
+  if (d.power) {
+    const fmt = w => w != null ? `${w}W` : '—';
+    setText('pow-total', fmt(d.power.total));
+    setText('pow-cpu',   fmt(d.power.cpu));
+    setText('pow-gpu',   fmt(d.power.gpu));
+    setText('pow-dram',  fmt(d.power.dram));
+    sparkPush(powerChart, d.power.total, 0);
+    sparkPush(powerChart, d.power.cpu,   1);
+    sparkPush(powerChart, d.power.gpu,   2);
+    sparkPush(powerChart, d.power.dram,  3);
+    powerChart.update('none');
   }
 }
 

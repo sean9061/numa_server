@@ -93,7 +93,7 @@
 
     /* ── Row layouts: min-height:0 lets them shrink to their 1fr track ── */
     #row-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height: 0; }
-    #row-charts  { display: grid; grid-template-columns: 1.6fr 0.8fr 0.6fr 1.3fr; gap: var(--gap); min-height: 0; }
+    #row-charts  { display: grid; grid-template-columns: 1.4fr 0.8fr 0.55fr 1fr 1.1fr; gap: var(--gap); min-height: 0; }
 
     /* ── Card base ── */
     .card {
@@ -189,6 +189,18 @@
     .disk-legend-mount { color: var(--text); flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .disk-legend-val { color: var(--dim); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+    .disk-legend-pct { font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums;
+      flex-shrink: 0; margin-left: 3px; }
+
+    /* ── Power card ── */
+    .power-chart-wrap { flex: 1; min-height: 0; position: relative; margin-top: 4px; }
+    .power-total { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums;
+      color: var(--text); margin-top: 4px; flex-shrink: 0; }
+    .power-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; flex-shrink: 0; }
+    .power-legend-item { display: flex; align-items: center; gap: 3px; font-size: 10px; }
+    .power-legend-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .power-legend-label { color: var(--dim); }
+    .power-legend-val { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
     /* ── Load card ── */
     .load-grid { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly;
@@ -493,6 +505,30 @@
         </div>
       </div>
 
+      <!-- Power -->
+      <div class="card">
+        <div class="card-title">POWER</div>
+        <div class="power-total" id="pow-total">—</div>
+        <div class="power-chart-wrap"><canvas id="power-chart"></canvas></div>
+        <div class="power-legend">
+          <div class="power-legend-item">
+            <span class="power-legend-dot" style="background:#3b82f6"></span>
+            <span class="power-legend-label">CPU</span>
+            <span class="power-legend-val" id="pow-cpu">—</span>
+          </div>
+          <div class="power-legend-item">
+            <span class="power-legend-dot" style="background:#f59e0b"></span>
+            <span class="power-legend-label">GPU</span>
+            <span class="power-legend-val" id="pow-gpu">—</span>
+          </div>
+          <div class="power-legend-item">
+            <span class="power-legend-dot" style="background:#818cf8"></span>
+            <span class="power-legend-label">DRAM</span>
+            <span class="power-legend-val" id="pow-dram">—</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Load Average -->
       <div class="card">
         <div class="card-title">LOAD AVG</div>
@@ -560,6 +596,6 @@
   </div><!-- /panel-wrap -->
 
 </div>
-<script src="/app.js?v=5"></script>
+<script src="/app.js?v=7"></script>
 </body>
 </html>
