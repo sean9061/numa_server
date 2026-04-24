@@ -212,14 +212,28 @@ function makeWebChart(canvasId) {
   });
 }
 
+function makeDiskDonut(canvasId) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'doughnut',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0, hoverOffset: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '72%', animation: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    },
+  });
+}
+
 // GPU/VRAM charts: initialized dynamically when GPU card is created
 const gpuCharts  = [];
 const vramCharts = [];
 
-const cpuChart = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
-const ramChart = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
-const netChart = makeNetChart('net-chart');
-const webChart = makeWebChart('web-chart');
+const cpuChart  = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
+const ramChart  = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
+const netChart  = makeNetChart('net-chart');
+const webChart  = makeWebChart('web-chart');
+const diskChart = makeDiskDonut('disk-chart');
+
+const DISK_COLORS = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];
 
 function sparkPush(chart, value, dsIdx = 0) {
   chart.data.datasets[dsIdx].data.shift();
@@ -334,8 +348,9 @@ function updateMetrics(d) {
   if (d.ram) {
     const p = d.ram.percent ?? 0;
     setGauge('ram-gauge', p, 'var(--green)');
-    setText('ram-pct',  `${p}%`, colorClass(p));
-    setText('ram-used', fmtBytes(d.ram.used));
+    setText('ram-pct',    `${p}%`, colorClass(p));
+    setText('ram-used',   fmtBytes(d.ram.used));
+    setText('ram-cached', fmtBytes((d.ram.cached ?? 0) + (d.ram.buffers ?? 0)));
     const swapPct = d.ram.swap_total > 0
       ? Math.round((d.ram.swap_used / d.ram.swap_total) * 100) : 0;
     setText('ram-swap', d.ram.swap_total > 0 ? `${swapPct}%` : '—');
@@ -352,16 +367,33 @@ function updateMetrics(d) {
     netChart.update('none');
   }
 
-  // Disk — aggregate total
+  // Disk — donut chart + legend
   if (d.disk && d.disk.length > 0) {
     const totalUsed = d.disk.reduce((s, x) => s + (x.used || 0), 0);
     const totalSize = d.disk.reduce((s, x) => s + (x.size || 0), 0);
-    const pct = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
-    const color = pct >= 85 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--green)';
+    const free = Math.max(0, totalSize - totalUsed);
+    const pct  = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
+
+    diskChart.data.labels = [...d.disk.map(x => x.mount), 'Free'];
+    diskChart.data.datasets[0].data = [...d.disk.map(x => x.used), free];
+    diskChart.data.datasets[0].backgroundColor = [
+      ...d.disk.map((_, i) => DISK_COLORS[i % DISK_COLORS.length]),
+      'rgba(26,45,74,0.7)',
+    ];
+    diskChart.update('none');
+
     setText('disk-pct-text', `${pct}%`, colorClass(pct));
-    const bar = document.getElementById('disk-bar');
-    if (bar) { bar.style.width = `${pct}%`; bar.style.background = color; }
-    setText('disk-used-text', `${fmtBytes(totalUsed)} / ${fmtBytes(totalSize)}`);
+
+    const legend = document.getElementById('disk-legend');
+    if (legend) {
+      legend.innerHTML = d.disk.map((disk, i) =>
+        `<div class="disk-legend-item">
+          <span class="disk-legend-dot" style="background:${DISK_COLORS[i % DISK_COLORS.length]}"></span>
+          <span class="disk-legend-mount">${disk.mount}</span>
+          <span class="disk-legend-val">${fmtBytes(disk.used)} / ${fmtBytes(disk.size)}</span>
+        </div>`
+      ).join('');
+    }
   }
 
   // Disk I/O

@@ -174,15 +174,21 @@
     .net-val { font-weight: 600; font-variant-numeric: tabular-nums; }
     .net-label { color: var(--dim); font-size: 10px; }
 
-    /* ── Disk card ── */
-    .disk-body { flex: 1; display: flex; flex-direction: column; justify-content: center;
-      gap: 8px; margin-top: 6px; }
-    .disk-pct-big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums;
-      text-align: center; line-height: 1; }
-    .disk-bar-wrap { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-    .disk-bar-fill { height: 100%; border-radius: 4px; background: var(--green);
-      transition: width 0.5s ease, background 0.3s; }
-    .disk-sub { font-size: 11px; color: var(--dim); text-align: center; }
+    /* ── Disk card (donut) ── */
+    .disk-donut-wrap { flex: 1; min-height: 0; position: relative; margin-top: 4px; }
+    .disk-donut-center {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center; pointer-events: none;
+    }
+    .disk-donut-pct { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+    .disk-donut-sub { font-size: 9px; color: var(--dim); margin-top: 2px; }
+    .disk-legend { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; flex-shrink: 0; }
+    .disk-legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+    .disk-legend-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .disk-legend-mount { color: var(--text); flex: 1; min-width: 0;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .disk-legend-val { color: var(--dim); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
     /* ── Load card ── */
     .load-grid { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly;
@@ -442,6 +448,7 @@
         </div>
         <div class="metric-meta">
           <div class="meta-pill">Used <span id="ram-used">—</span></div>
+          <div class="meta-pill">Cache <span id="ram-cached">—</span></div>
           <div class="meta-pill">Swap <span id="ram-swap">—</span></div>
         </div>
       </div>
@@ -472,16 +479,17 @@
       <!-- Disk -->
       <div class="card">
         <div class="card-title">DISK</div>
-        <div class="disk-body">
-          <div class="disk-pct-big" id="disk-pct-text">—</div>
-          <div class="disk-bar-wrap">
-            <div class="disk-bar-fill" id="disk-bar" style="width:0%"></div>
+        <div class="disk-donut-wrap">
+          <canvas id="disk-chart"></canvas>
+          <div class="disk-donut-center">
+            <div class="disk-donut-pct" id="disk-pct-text">—</div>
+            <div class="disk-donut-sub">USED</div>
           </div>
-          <div class="disk-sub" id="disk-used-text">—</div>
-          <div class="disk-io">
-            <span class="disk-io-item">↓ R <span id="disk-rx">—</span></span>
-            <span class="disk-io-item">↑ W <span id="disk-wx">—</span></span>
-          </div>
+        </div>
+        <div class="disk-legend" id="disk-legend"></div>
+        <div class="disk-io" style="margin-top:5px">
+          <span class="disk-io-item">↓ R <span id="disk-rx">—</span></span>
+          <span class="disk-io-item">↑ W <span id="disk-wx">—</span></span>
         </div>
       </div>
 
@@ -552,6 +560,6 @@
   </div><!-- /panel-wrap -->
 
 </div>
-<script src="/app.js?v=4"></script>
+<script src="/app.js?v=5"></script>
 </body>
 </html>
