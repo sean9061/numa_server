@@ -16,6 +16,22 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// ── Panel toggle ──────────────────────────────────────────────────────────────
+let activePanel = 'server';
+
+function switchPanel(name) {
+  activePanel = name;
+  document.getElementById('panel-server').style.display   = name === 'server'   ? 'grid' : 'none';
+  document.getElementById('panel-services').style.display = name === 'services' ? 'grid' : 'none';
+  document.querySelectorAll('.pt-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.panel === name)
+  );
+  // When switching to services, re-subscribe to active service logs
+  if (name === 'services' && selectedService) {
+    ws?.send(JSON.stringify({ type: 'subscribe_logs', container: selectedService }));
+  }
+}
+
 // ── Gauge helpers ─────────────────────────────────────────────────────────────
 const GAUGE_LEN = 204.2; // π × 65
 
@@ -149,11 +165,6 @@ const BASE_OPTS = {
   elements: { point: { radius: 0 }, line: { tension: 0.4, borderWidth: 1.5 } },
 };
 
-const CORE_COLORS = [
-  '#3b82f6','#818cf8','#22c55e','#f59e0b','#ef4444','#06b6d4',
-  '#f97316','#84cc16','#ec4899','#10b981','#8b5cf6','#14b8a6',
-  '#f43f5e','#a3e635','#fb923c','#38bdf8',
-];
 const GPU_COLORS  = ['#818cf8', '#a78bfa'];
 const GPU_BG      = ['rgba(129,140,248,0.10)', 'rgba(167,139,250,0.10)'];
 
@@ -381,71 +392,168 @@ const SERVICE_LINKS = {
   'ollama':              'https://ollama.s3an.dev',
 };
 
+// Container stats from container_stats WebSocket messages
+const containerStats = {};
+
+let currentContainers = [];
+let selectedService = null;
+
 function updateDocker(containers) {
-  const list = document.getElementById('services-list');
+  currentContainers = containers;
+  renderServiceCards(containers);
+  // Update detail panel stats if a service is selected
+  if (selectedService) {
+    const c = containers.find(x => x.name === selectedService);
+    if (c) updateDetailMeta(c);
+  }
+}
+
+function renderServiceCards(containers) {
+  const list = document.getElementById('svc-cards-list');
+  if (!containers.length) {
+    list.innerHTML = '<div style="color:var(--dim);font-size:12px">No containers found</div>';
+    return;
+  }
+
   list.innerHTML = containers.map(c => {
-    const dotClass = c.state === 'running' ? 'status-running'
-                   : c.state === 'exited'  ? 'status-exited'
-                   : c.state === 'paused'  ? 'status-paused' : 'status-other';
+    const dotClass   = dotClassFor(c.state);
+    const badgeClass = c.state === 'running' ? 'running'
+                     : c.state === 'exited'  ? 'exited'
+                     : c.state === 'paused'  ? 'paused' : 'other';
     const link = SERVICE_LINKS[c.name];
-    const tag = link ? 'a' : 'div';
-    const attrs = link ? `href="${link}" target="_blank" rel="noopener"` : '';
-    return `<${tag} class="service-row" ${attrs} onclick="handleServiceClick('${c.name}', event)">
-      <span class="status-dot ${dotClass}"></span>
-      <span class="service-name">${c.name}</span>
-      <span class="service-image">${c.image}</span>
-      <span class="service-status-text">${c.status}</span>
-    </${tag}>`;
+    const stats = containerStats[c.name];
+    const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
+    const memVal = stats?.mem_used != null ? fmtBytes(stats.mem_used)  : '—';
+    const selected = c.name === selectedService ? ' selected' : '';
+    return `<div class="svc-card${selected}" data-name="${c.name}" onclick="selectService('${c.name}')">
+      <div class="svc-card-header">
+        <span class="status-dot ${dotClass}"></span>
+        <span class="svc-card-name">${c.name}</span>
+        <span class="svc-state-badge ${badgeClass}">${c.state}</span>
+      </div>
+      <div class="svc-card-meta">
+        <span>${c.image}</span>
+        <span class="svc-card-meta-sep">·</span>
+        <span>${c.status}</span>
+      </div>
+      <div class="svc-card-stats">
+        <div class="svc-stat-chip" id="svc-cpu-chip-${c.name}">CPU <span>${cpuVal}</span></div>
+        <div class="svc-stat-chip" id="svc-mem-chip-${c.name}">MEM <span>${memVal}</span></div>
+      </div>
+      ${link ? `<div class="svc-card-footer"><a class="svc-link-btn" href="${link}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open ↗</a></div>` : ''}
+    </div>`;
   }).join('');
-
-  updateLogTabs(containers.filter(c => c.state === 'running').map(c => c.name));
 }
 
-function handleServiceClick(name, event) {
-  if (SERVICE_LINKS[name] && event.target.closest('a')) return;
-  event.preventDefault();
-  switchLogTab(name);
+function dotClassFor(state) {
+  return state === 'running' ? 'status-running'
+       : state === 'exited'  ? 'status-exited'
+       : state === 'paused'  ? 'status-paused' : 'status-other';
 }
 
-// ── Log streaming ──────────────────────────────────────────────────────────────
-let activeLogContainer = null;
-const LOG_MAX = 200;
-
-function updateLogTabs(names) {
-  const tabs = document.getElementById('log-tabs');
-  const existing = new Set([...tabs.querySelectorAll('.log-tab')].map(t => t.dataset.name));
-  const wanted   = new Set(names);
-
-  for (const name of names) {
-    if (!existing.has(name)) {
-      const btn = document.createElement('button');
-      btn.className = 'log-tab';
-      btn.dataset.name = name;
-      btn.textContent = name;
-      btn.onclick = () => switchLogTab(name);
-      tabs.appendChild(btn);
+function updateContainerStats(statsArray) {
+  // statsArray: [{ name, stats: { cpu, mem_used, mem_limit, mem_percent } }]
+  statsArray.forEach(s => { containerStats[s.name] = s.stats; });
+  // Update chips in service cards
+  statsArray.forEach(({ name, stats }) => {
+    const cpuChip = document.getElementById(`svc-cpu-chip-${name}`);
+    const memChip = document.getElementById(`svc-mem-chip-${name}`);
+    if (cpuChip) cpuChip.innerHTML = `CPU <span>${stats.cpu != null ? stats.cpu.toFixed(1) + '%' : '—'}</span>`;
+    if (memChip) memChip.innerHTML = `MEM <span>${stats.mem_used != null ? fmtBytes(stats.mem_used) : '—'}</span>`;
+  });
+  // Update detail panel stats if showing
+  if (selectedService) {
+    const s = containerStats[selectedService];
+    if (s) {
+      const detailCpu = document.getElementById('svc-detail-cpu');
+      const detailMem = document.getElementById('svc-detail-mem');
+      if (detailCpu) detailCpu.textContent = s.cpu != null ? `${s.cpu.toFixed(1)}%` : '—';
+      if (detailMem) detailMem.textContent = s.mem_used != null
+        ? `${fmtBytes(s.mem_used)}${s.mem_limit ? ' / ' + fmtBytes(s.mem_limit) : ''}` : '—';
     }
   }
-  for (const btn of tabs.querySelectorAll('.log-tab')) {
-    if (!wanted.has(btn.dataset.name)) btn.remove();
-  }
-  if (!activeLogContainer && tabs.firstElementChild) {
-    switchLogTab(tabs.firstElementChild.dataset.name);
-  }
 }
 
-function switchLogTab(name) {
-  activeLogContainer = name;
-  for (const btn of document.querySelectorAll('.log-tab')) {
-    btn.classList.toggle('active', btn.dataset.name === name);
-  }
-  document.getElementById('log-view').innerHTML = '';
+// ── Service selection & detail panel ─────────────────────────────────────────
+function selectService(name) {
+  // Update card selection state
+  document.querySelectorAll('.svc-card').forEach(el => {
+    el.classList.toggle('selected', el.dataset.name === name);
+  });
+
+  selectedService = name;
+  const c = currentContainers.find(x => x.name === name);
+  renderDetailPanel(c);
+
+  // Subscribe to logs
   ws?.send(JSON.stringify({ type: 'subscribe_logs', container: name }));
 }
 
+function renderDetailPanel(c) {
+  const col = document.getElementById('svc-detail-col');
+  if (!c) {
+    col.innerHTML = '<div class="svc-detail-empty">Service not found</div>';
+    return;
+  }
+
+  const link = SERVICE_LINKS[c.name];
+  const dotClass = dotClassFor(c.state);
+  const badgeClass = c.state === 'running' ? 'running'
+                   : c.state === 'exited'  ? 'exited'
+                   : c.state === 'paused'  ? 'paused' : 'other';
+  const stats = containerStats[c.name];
+  const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
+  const memVal = stats?.mem_used != null
+    ? `${fmtBytes(stats.mem_used)}${stats.mem_limit ? ' / ' + fmtBytes(stats.mem_limit) : ''}` : '—';
+
+  col.innerHTML = `
+    <div class="svc-detail-header">
+      <span class="status-dot ${dotClass}" style="width:8px;height:8px"></span>
+      <span class="svc-detail-name">${c.name}</span>
+      <span class="svc-state-badge ${badgeClass}" style="font-size:10px">${c.state}</span>
+      <div class="header-spacer"></div>
+      <div class="svc-detail-actions">
+        ${link ? `<a class="svc-detail-action-btn" href="${link}" target="_blank" rel="noopener">Open ↗</a>` : ''}
+      </div>
+    </div>
+    <div class="svc-detail-meta">
+      <span>${c.image}</span>
+      <span>·</span>
+      <span>${c.status}</span>
+    </div>
+    <div class="svc-detail-stats">
+      <div class="svc-detail-stat-chip">CPU <span id="svc-detail-cpu">${cpuVal}</span></div>
+      <div class="svc-detail-stat-chip">MEM <span id="svc-detail-mem">${memVal}</span></div>
+    </div>
+    <div class="svc-detail-divider"></div>
+    <div class="svc-detail-log-title">LOGS</div>
+    <div class="log-view" id="svc-log-view"><span style="color:var(--dim)">Loading logs...</span></div>
+  `;
+}
+
+function updateDetailMeta(c) {
+  const badgeClass = c.state === 'running' ? 'running'
+                   : c.state === 'exited'  ? 'exited'
+                   : c.state === 'paused'  ? 'paused' : 'other';
+  const dot = document.querySelector('#svc-detail-col .status-dot');
+  if (dot) dot.className = `status-dot ${dotClassFor(c.state)}`;
+  const badge = document.querySelector('#svc-detail-col .svc-state-badge');
+  if (badge) { badge.className = `svc-state-badge ${badgeClass}`; badge.textContent = c.state; }
+}
+
+// ── Log streaming ──────────────────────────────────────────────────────────────
+const LOG_MAX = 200;
+
 function appendLog(container, line) {
-  if (container !== activeLogContainer) return;
-  const view = document.getElementById('log-view');
+  if (container !== selectedService) return;
+  const view = document.getElementById('svc-log-view');
+  if (!view) return;
+
+  // Clear the placeholder on first real log line
+  if (view.children.length === 1 && view.firstElementChild?.style.color) {
+    view.innerHTML = '';
+  }
+
   const atBottom = view.scrollHeight - view.clientHeight <= view.scrollTop + 20;
   const div = document.createElement('div');
   div.className = 'log-line' + (/error|err|fatal|warn/i.test(line) ? ' err' : '');
@@ -453,10 +561,7 @@ function appendLog(container, line) {
   view.appendChild(div);
   while (view.children.length > LOG_MAX) view.removeChild(view.firstChild);
   if (atBottom) view.scrollTop = view.scrollHeight;
-
-
 }
-
 
 // ── WebSocket ──────────────────────────────────────────────────────────────────
 let ws = null;
@@ -470,7 +575,7 @@ function wsConnect() {
     wsDelay = 1000;
     document.getElementById('ws-dot').className = 'ws-dot connected';
     document.getElementById('ws-label').textContent = 'Live';
-    if (activeLogContainer) ws.send(JSON.stringify({ type: 'subscribe_logs', container: activeLogContainer }));
+    if (selectedService) ws.send(JSON.stringify({ type: 'subscribe_logs', container: selectedService }));
   };
 
   ws.onmessage = ({ data }) => {
@@ -492,8 +597,9 @@ function wsConnect() {
           }
         }
       }
-      if (msg.type === 'docker') updateDocker(msg.data);
-      if (msg.type === 'log')    appendLog(msg.container, msg.line);
+      if (msg.type === 'docker')          updateDocker(msg.data);
+      if (msg.type === 'container_stats') updateContainerStats(msg.data);
+      if (msg.type === 'log')             appendLog(msg.container, msg.line);
     } catch {}
   };
 

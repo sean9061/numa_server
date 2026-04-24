@@ -28,7 +28,9 @@
 
     #root {
       display: grid;
-      grid-template-rows: 48px 1fr 1fr 1fr;
+      grid-template-rows: 48px 1fr;
+      grid-template-columns: 1fr;
+      grid-template-areas: "header" "content";
       height: 100vh;
       padding: var(--gap);
       gap: var(--gap);
@@ -36,6 +38,7 @@
 
     /* ── Header ── */
     #header {
+      grid-area: header;
       display: flex; align-items: center;
       padding: 0 12px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -63,10 +66,28 @@
     .ws-dot.connected { background: var(--green); }
     .ws-label { font-size: 11px; color: var(--dim); }
 
+    /* ── Panel toggle ── */
+    .panel-toggle { display: flex; gap: 3px; }
+    .pt-btn {
+      padding: 5px 13px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--dim);
+      transition: all 0.15s; letter-spacing: 0.03em;
+    }
+    .pt-btn.active { background: var(--surface2); border-color: var(--blue); color: var(--text); }
+    .pt-btn:not(.active):hover { border-color: var(--border); color: var(--text); }
+
+    /* ── Panels ── */
+    #panel-server, #panel-services {
+      grid-area: content;
+      gap: var(--gap);
+      min-height: 0;
+    }
+    #panel-server  { display: grid; grid-template-rows: 1fr 1fr; }
+    #panel-services { display: none; grid-template-columns: 1fr 1.6fr; }
+
     /* ── Row layouts ── */
     #row-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
     #row-charts  { display: grid; grid-template-columns: 1.6fr 0.8fr 0.6fr 1.3fr; gap: var(--gap); }
-    #row-bottom  { display: grid; grid-template-columns: 1fr 2.2fr; gap: var(--gap); }
 
     /* ── Card base ── */
     .card {
@@ -172,23 +193,6 @@
     .web-stat-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .web-stat-label { color: var(--dim); }
 
-    /* ── Services card ── */
-    .services-list { flex: 1; display: flex; flex-direction: column; gap: 5px;
-      margin-top: 7px; overflow-y: auto; }
-    .service-row { display: flex; align-items: center; gap: 8px; padding: 6px 9px;
-      background: var(--surface2); border: 1px solid var(--border); border-radius: 7px;
-      text-decoration: none; color: var(--text); transition: border-color 0.15s; cursor: pointer; }
-    .service-row:hover { border-color: var(--blue); }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .status-running { background: var(--green); box-shadow: 0 0 5px var(--green); }
-    .status-exited  { background: var(--red); }
-    .status-paused  { background: var(--amber); }
-    .status-other   { background: var(--dim); }
-    .service-name   { font-size: 11px; font-weight: 600; flex: 1; }
-    .service-image  { font-size: 10px; color: var(--dim); }
-    .service-status-text { font-size: 10px; color: var(--dim); flex-shrink: 0;
-      max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
     /* ── Logs card ── */
     .log-tabs { display: flex; gap: 4px; margin-top: 7px; flex-shrink: 0; flex-wrap: wrap; }
     .log-tab { padding: 3px 9px; border-radius: 5px; font-size: 11px; font-weight: 500;
@@ -202,6 +206,111 @@
     .log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
     .log-line.err { color: #f87171; }
 
+    /* ── Services panel ── */
+    .svc-list { flex: 1; display: flex; flex-direction: column; gap: 5px;
+      margin-top: 7px; overflow-y: auto; }
+
+    .svc-card {
+      flex-shrink: 0;
+      padding: 9px 10px;
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      cursor: pointer; transition: border-color 0.15s;
+    }
+    .svc-card:hover { border-color: var(--blue); }
+    .svc-card.selected { border-color: var(--blue); background: #0f1d35; }
+
+    .svc-card-header {
+      display: flex; align-items: center; gap: 7px; margin-bottom: 4px;
+    }
+    .svc-card-name { font-size: 12px; font-weight: 600; flex: 1; }
+    .svc-state-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 2px 6px; border-radius: 4px;
+    }
+    .svc-state-badge.running { background: rgba(34,197,94,0.15); color: var(--green); }
+    .svc-state-badge.exited  { background: rgba(239,68,68,0.15);  color: var(--red); }
+    .svc-state-badge.paused  { background: rgba(245,158,11,0.15); color: var(--amber); }
+    .svc-state-badge.other   { background: rgba(78,98,130,0.15);  color: var(--dim); }
+
+    .svc-card-meta {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 10px; color: var(--dim); margin-bottom: 5px;
+    }
+    .svc-card-meta-sep { color: var(--border); }
+
+    .svc-card-stats {
+      display: flex; gap: 10px;
+    }
+    .svc-stat-chip {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 10px; color: var(--dim);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 6px;
+    }
+    .svc-stat-chip span { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .svc-card-footer {
+      display: flex; align-items: center; justify-content: flex-end;
+      margin-top: 6px; gap: 6px;
+    }
+    .svc-link-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 5px; font-size: 10px; font-weight: 600;
+      text-decoration: none;
+      background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3);
+      color: var(--blue); transition: all 0.15s;
+    }
+    .svc-link-btn:hover { background: rgba(59,130,246,0.22); border-color: var(--blue); }
+
+    /* ── Service detail column ── */
+    .svc-detail-col {
+      display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 10px 12px; overflow: hidden; min-height: 0;
+    }
+    .svc-detail-header {
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .svc-detail-name {
+      font-size: 15px; font-weight: 700; flex: 1;
+    }
+    .svc-detail-actions { display: flex; gap: 6px; }
+    .svc-detail-action-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      text-decoration: none; cursor: pointer; border: none;
+      background: rgba(59,130,246,0.12); border: 1px solid rgba(59,130,246,0.3);
+      color: var(--blue); transition: all 0.15s;
+    }
+    .svc-detail-action-btn:hover { background: rgba(59,130,246,0.22); border-color: var(--blue); }
+
+    .svc-detail-meta {
+      display: flex; gap: 12px; margin-top: 6px; flex-shrink: 0;
+      font-size: 10px; color: var(--dim);
+    }
+    .svc-detail-stats {
+      display: flex; gap: 8px; margin-top: 6px; flex-shrink: 0;
+    }
+    .svc-detail-stat-chip {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 11px; color: var(--dim);
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 5px; padding: 3px 8px;
+    }
+    .svc-detail-stat-chip span { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .svc-detail-divider { height: 1px; background: var(--border); margin: 8px 0; flex-shrink: 0; }
+
+    .svc-detail-log-title {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--dim); flex-shrink: 0; margin-bottom: 5px;
+    }
+
+    .svc-detail-empty {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: var(--dim); font-size: 13px;
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -211,6 +320,13 @@
     .color-ok   { color: var(--green); }
     .color-warn { color: var(--amber); }
     .color-crit { color: var(--red); }
+
+    /* Status dot */
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .status-running { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .status-exited  { background: var(--red); }
+    .status-paused  { background: var(--amber); }
+    .status-other   { background: var(--dim); }
   </style>
 </head>
 <body>
@@ -223,6 +339,11 @@
         <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/>
       </svg>
       NUMA MONITOR
+    </div>
+    <div class="header-sep"></div>
+    <div class="panel-toggle">
+      <button class="pt-btn active" data-panel="server"   onclick="switchPanel('server')">SERVER</button>
+      <button class="pt-btn"        data-panel="services" onclick="switchPanel('services')">SERVICES</button>
     </div>
     <div class="header-sep"></div>
     <div class="header-stat">
@@ -240,7 +361,7 @@
       <span class="ws-label" id="ws-label">Connecting</span>
     </div>
     <div class="header-spacer"></div>
-    <div class="time-range">
+    <div class="time-range" id="time-range-controls">
       <button class="tr-btn active" data-pts="60"   onclick="setTimeWindow(60)">2m</button>
       <button class="tr-btn"        data-pts="300"  onclick="setTimeWindow(300)">10m</button>
       <button class="tr-btn"        data-pts="900"  onclick="setTimeWindow(900)">30m</button>
@@ -252,152 +373,161 @@
     <button class="btn-logout" onclick="logout()">Logout</button>
   </div>
 
-  <!-- Row 1: CPU / GPU / RAM / VRAM -->
-  <div id="row-metrics">
+  <!-- Panel: Server Monitor -->
+  <div id="panel-server">
 
-    <!-- CPU -->
-    <div class="card">
-      <div class="card-title">CPU</div>
-      <div class="metric-body">
-        <div class="metric-gauge">
-          <svg class="gauge-svg" viewBox="0 0 160 100">
-            <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
-            <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="cpu-gauge" stroke="var(--blue)" stroke-dasharray="0 204.2"/>
-          </svg>
-          <div class="gauge-center-text">
-            <div class="gauge-pct" id="cpu-pct">—</div>
-            <div class="gauge-sub">USAGE</div>
+    <!-- Row 1: CPU / GPU / RAM -->
+    <div id="row-metrics">
+
+      <!-- CPU -->
+      <div class="card">
+        <div class="card-title">CPU</div>
+        <div class="metric-body">
+          <div class="metric-gauge">
+            <svg class="gauge-svg" viewBox="0 0 160 100">
+              <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
+              <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="cpu-gauge" stroke="var(--blue)" stroke-dasharray="0 204.2"/>
+            </svg>
+            <div class="gauge-center-text">
+              <div class="gauge-pct" id="cpu-pct">—</div>
+              <div class="gauge-sub">USAGE</div>
+            </div>
+          </div>
+          <div class="metric-chart"><canvas id="cpu-chart"></canvas></div>
+        </div>
+        <div class="core-grid" id="cpu-cores"></div>
+        <div class="metric-meta">
+          <div class="meta-pill">🌡 <span id="cpu-temp">—</span></div>
+          <div class="meta-pill">⚡ <span id="cpu-pow">—</span></div>
+        </div>
+      </div>
+
+      <!-- GPU cards injected dynamically by app.js -->
+
+      <!-- RAM -->
+      <div class="card" id="ram-card">
+        <div class="card-title">RAM</div>
+        <div class="metric-body">
+          <div class="metric-gauge">
+            <svg class="gauge-svg" viewBox="0 0 160 100">
+              <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
+              <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="ram-gauge" stroke="var(--green)" stroke-dasharray="0 204.2"/>
+            </svg>
+            <div class="gauge-center-text">
+              <div class="gauge-pct" id="ram-pct">—</div>
+              <div class="gauge-sub">USED</div>
+            </div>
+          </div>
+          <div class="metric-chart"><canvas id="ram-chart"></canvas></div>
+        </div>
+        <div class="metric-meta">
+          <div class="meta-pill">Used <span id="ram-used">—</span></div>
+          <div class="meta-pill">Swap <span id="ram-swap">—</span></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 2: Network / Disk / Load / Web Requests -->
+    <div id="row-charts">
+
+      <!-- Network -->
+      <div class="card">
+        <div class="card-title">NETWORK &mdash; <span id="net-iface" style="text-transform:none;font-weight:400;color:var(--text)">—</span></div>
+        <div class="net-chart-wrap"><canvas id="net-chart"></canvas></div>
+        <div class="net-stats">
+          <div class="net-stat">
+            <span class="dot dot-rx"></span>
+            <span class="net-val" style="color:var(--blue)" id="rx-val">—</span>
+            <span class="net-label">↓ RX</span>
+          </div>
+          <div class="net-stat">
+            <span class="dot dot-tx"></span>
+            <span class="net-val" style="color:var(--purple)" id="tx-val">—</span>
+            <span class="net-label">↑ TX</span>
           </div>
         </div>
-        <div class="metric-chart"><canvas id="cpu-chart"></canvas></div>
       </div>
-      <div class="core-grid" id="cpu-cores"></div>
-      <div class="metric-meta">
-        <div class="meta-pill">🌡 <span id="cpu-temp">—</span></div>
-        <div class="meta-pill">⚡ <span id="cpu-pow">—</span></div>
-      </div>
-    </div>
 
-    <!-- GPU cards injected dynamically by app.js -->
-
-    <!-- RAM -->
-    <div class="card" id="ram-card">
-      <div class="card-title">RAM</div>
-      <div class="metric-body">
-        <div class="metric-gauge">
-          <svg class="gauge-svg" viewBox="0 0 160 100">
-            <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
-            <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="ram-gauge" stroke="var(--green)" stroke-dasharray="0 204.2"/>
-          </svg>
-          <div class="gauge-center-text">
-            <div class="gauge-pct" id="ram-pct">—</div>
-            <div class="gauge-sub">USED</div>
+      <!-- Disk -->
+      <div class="card">
+        <div class="card-title">DISK</div>
+        <div class="disk-body">
+          <div class="disk-pct-big" id="disk-pct-text">—</div>
+          <div class="disk-bar-wrap">
+            <div class="disk-bar-fill" id="disk-bar" style="width:0%"></div>
+          </div>
+          <div class="disk-sub" id="disk-used-text">—</div>
+          <div class="disk-io">
+            <span class="disk-io-item">↓ R <span id="disk-rx">—</span></span>
+            <span class="disk-io-item">↑ W <span id="disk-wx">—</span></span>
           </div>
         </div>
-        <div class="metric-chart"><canvas id="ram-chart"></canvas></div>
       </div>
-      <div class="metric-meta">
-        <div class="meta-pill">Used <span id="ram-used">—</span></div>
-        <div class="meta-pill">Swap <span id="ram-swap">—</span></div>
+
+      <!-- Load Average -->
+      <div class="card">
+        <div class="card-title">LOAD AVG</div>
+        <div class="load-grid">
+          <div class="load-row">
+            <span class="load-label">1 min</span>
+            <span class="load-val" id="load-1">—</span>
+          </div>
+          <div class="load-row">
+            <span class="load-label">5 min</span>
+            <span class="load-val" id="load-5">—</span>
+          </div>
+          <div class="load-row">
+            <span class="load-label">15 min</span>
+            <span class="load-val" id="load-15">—</span>
+          </div>
+          <div class="load-divider"></div>
+          <div class="load-row">
+            <span class="load-label">Processes</span>
+            <span class="load-val" style="font-size:13px" id="proc-count">—</span>
+          </div>
+        </div>
       </div>
+
+      <!-- Web Requests -->
+      <div class="card">
+        <div class="card-title">WEB REQUESTS (1 hr)</div>
+        <div class="web-chart-wrap"><canvas id="web-chart"></canvas></div>
+        <div class="web-stats">
+          <div class="web-stat">
+            <div class="web-stat-val" id="web-rpm">—</div>
+            <div class="web-stat-label">req/min</div>
+          </div>
+          <div class="web-stat">
+            <div class="web-stat-val" id="web-total">—</div>
+            <div class="web-stat-label">total (1hr)</div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
+  </div><!-- /panel-server -->
 
-  </div>
+  <!-- Panel: Services -->
+  <div id="panel-services">
 
-  <!-- Row 2: Network / Disk / Load / Web Requests -->
-  <div id="row-charts">
-
-    <!-- Network -->
-    <div class="card">
-      <div class="card-title">NETWORK &mdash; <span id="net-iface" style="text-transform:none;font-weight:400;color:var(--text)">—</span></div>
-      <div class="net-chart-wrap"><canvas id="net-chart"></canvas></div>
-      <div class="net-stats">
-        <div class="net-stat">
-          <span class="dot dot-rx"></span>
-          <span class="net-val" style="color:var(--blue)" id="rx-val">—</span>
-          <span class="net-label">↓ RX</span>
-        </div>
-        <div class="net-stat">
-          <span class="dot dot-tx"></span>
-          <span class="net-val" style="color:var(--purple)" id="tx-val">—</span>
-          <span class="net-label">↑ TX</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Disk -->
-    <div class="card">
-      <div class="card-title">DISK</div>
-      <div class="disk-body">
-        <div class="disk-pct-big" id="disk-pct-text">—</div>
-        <div class="disk-bar-wrap">
-          <div class="disk-bar-fill" id="disk-bar" style="width:0%"></div>
-        </div>
-        <div class="disk-sub" id="disk-used-text">—</div>
-        <div class="disk-io">
-          <span class="disk-io-item">↓ R <span id="disk-rx">—</span></span>
-          <span class="disk-io-item">↑ W <span id="disk-wx">—</span></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Load Average -->
-    <div class="card">
-      <div class="card-title">LOAD AVG</div>
-      <div class="load-grid">
-        <div class="load-row">
-          <span class="load-label">1 min</span>
-          <span class="load-val" id="load-1">—</span>
-        </div>
-        <div class="load-row">
-          <span class="load-label">5 min</span>
-          <span class="load-val" id="load-5">—</span>
-        </div>
-        <div class="load-row">
-          <span class="load-label">15 min</span>
-          <span class="load-val" id="load-15">—</span>
-        </div>
-        <div class="load-divider"></div>
-        <div class="load-row">
-          <span class="load-label">Processes</span>
-          <span class="load-val" style="font-size:13px" id="proc-count">—</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Web Requests -->
-    <div class="card">
-      <div class="card-title">WEB REQUESTS (1 hr)</div>
-      <div class="web-chart-wrap"><canvas id="web-chart"></canvas></div>
-      <div class="web-stats">
-        <div class="web-stat">
-          <div class="web-stat-val" id="web-rpm">—</div>
-          <div class="web-stat-label">req/min</div>
-        </div>
-        <div class="web-stat">
-          <div class="web-stat-val" id="web-total">—</div>
-          <div class="web-stat-label">total (1hr)</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- Row 3: Services + Logs -->
-  <div id="row-bottom">
+    <!-- Left: Service list -->
     <div class="card">
       <div class="card-title">SERVICES</div>
-      <div class="services-list" id="services-list">
+      <div class="svc-list" id="svc-cards-list">
         <div style="color:var(--dim);font-size:12px">Loading...</div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">LOGS</div>
-      <div class="log-tabs" id="log-tabs"></div>
-      <div class="log-view" id="log-view"><span style="color:var(--dim)">Select a container to view logs...</span></div>
+
+    <!-- Right: Service detail -->
+    <div class="svc-detail-col" id="svc-detail-col">
+      <div class="svc-detail-empty" id="svc-detail-empty">
+        Select a service to view details and logs
+      </div>
     </div>
-  </div>
+
+  </div><!-- /panel-services -->
 
 </div>
 <script src="/app.js"></script>
