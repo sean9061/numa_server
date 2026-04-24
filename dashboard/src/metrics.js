@@ -182,10 +182,25 @@ async function getCpuTemp() {
 }
 
 // CPU power via Intel RAPL
+const RAPL_PATHS = [
+  '/sys/class/powercap/intel-rapl:0/energy_uj',
+  '/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj',
+];
+let raplPath = null;
+
+async function findRaplPath() {
+  for (const p of RAPL_PATHS) {
+    try { await readFile(p, 'utf-8'); return p; } catch { /* try next */ }
+  }
+  return null;
+}
+
 async function getCpuPower() {
   const now = Date.now();
   try {
-    const raw = await readFile('/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj', 'utf-8');
+    if (!raplPath) raplPath = await findRaplPath();
+    if (!raplPath) return null;
+    const raw = await readFile(raplPath, 'utf-8');
     const energy = parseInt(raw.trim());
 
     let watts = null;

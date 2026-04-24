@@ -8,6 +8,7 @@ import { dirname, join } from 'path';
 import { authRouter, verifyToken, COOKIE_NAME_EXPORT as COOKIE_NAME } from './auth.js';
 import { collectMetrics } from './metrics.js';
 import { listContainers, getContainerStats, streamContainerLogs, startNpmTracking, getWebStats } from './docker-monitor.js';
+import { pushEntry, getEntries, loadFromDisk, saveToDisk } from './history.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT ?? 3000;
@@ -128,6 +129,8 @@ wss.on('connection', (ws, req) => {
   });
 
   send(ws, { type: 'connected' });
+  const hist = getEntries();
+  if (hist.length > 0) send(ws, { type: 'history', data: hist });
 });
 
 function send(ws, data) {
@@ -144,12 +147,23 @@ function broadcast(data) {
 // Web request tracking (server-side, always running)
 startNpmTracking();
 
-// Metrics broadcast loop (every 2s)
+// Load history from disk on startup
+await loadFromDisk();
+
+// Save history to disk every minute
+setInterval(saveToDisk, 60_000);
+
+// Save on graceful shutdown
+process.on('SIGTERM', async () => { await saveToDisk(); process.exit(0); });
+
+// Metrics broadcast loop (every 2s) — web stats merged into metrics message
 setInterval(async () => {
   if (wss.clients.size === 0) return;
   try {
-    broadcast({ type: 'metrics', data: await collectMetrics() });
-    broadcast({ type: 'web_requests', data: getWebStats() });
+    const metrics = await collectMetrics();
+    const web = getWebStats();
+    pushEntry(metrics, web.rpm);
+    broadcast({ type: 'metrics', data: { ...metrics, web_rpm: web.rpm, web_total: web.total_1h } });
   } catch (err) {
     console.error('[metrics]', err.message);
   }
