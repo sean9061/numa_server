@@ -92,7 +92,7 @@
 
     /* ── Row layouts: min-height:0 lets them shrink to their 1fr track ── */
     #row-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height: 0; }
-    #row-charts  { display: grid; grid-template-columns: 1.4fr 0.8fr 0.55fr 1fr 1.1fr; gap: var(--gap); min-height: 0; }
+    #row-charts  { display: grid; grid-template-columns: 1.5fr 0.9fr 0.65fr 1.2fr; gap: var(--gap); min-height: 0; }
 
     /* ── Card base ── */
     .card {
@@ -256,7 +256,7 @@
     .svc-grid {
       flex: 1; min-height: 0; overflow-y: auto;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
       gap: var(--gap);
       align-content: start;
     }
@@ -264,45 +264,58 @@
     /* ── Service card ── */
     .svc2-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-      padding: 11px 12px; display: flex; flex-direction: column; gap: 8px;
+      padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
       transition: border-color 0.15s;
     }
     .svc2-card:hover { border-color: rgba(59,130,246,0.35); }
+    .svc2-card .status-dot { width: 9px; height: 9px; }
+    .svc2-card .svc-state-badge { font-size: 10px; padding: 3px 8px; }
 
-    .svc2-header { display: flex; align-items: center; gap: 7px; }
+    .svc2-header { display: flex; align-items: center; gap: 10px; }
     .svc2-name {
-      font-size: 12px; font-weight: 600; flex: 1; min-width: 0;
+      font-size: 15px; font-weight: 700; flex: 1; min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .svc2-meta {
-      font-size: 10px; color: var(--dim);
+      font-size: 11px; color: var(--dim);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
     /* Resource bars */
-    .svc2-bars { display: flex; flex-direction: column; gap: 5px; }
-    .svc2-bar-row { display: flex; align-items: center; gap: 6px; }
-    .svc2-bar-label { font-size: 9px; color: var(--dim); width: 28px; flex-shrink: 0; }
-    .svc2-bar-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
-    .svc2-bar-fill  { height: 100%; border-radius: 2px; transition: width 0.4s ease, background 0.3s; }
+    .svc2-bars { display: flex; flex-direction: column; gap: 9px; }
+    .svc2-bar-row { display: flex; align-items: center; gap: 10px; }
+    .svc2-bar-label { font-size: 10px; color: var(--dim); width: 34px; flex-shrink: 0; }
+    .svc2-bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .svc2-bar-fill  { height: 100%; border-radius: 3px; transition: width 0.4s ease, background 0.3s; }
     .svc2-bar-val   {
-      font-size: 9px; color: var(--dim); width: 90px; text-align: right; flex-shrink: 0;
+      font-size: 11px; color: var(--dim); width: 110px; text-align: right; flex-shrink: 0;
       font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .svc2-disk-io {
-      flex: 1; font-size: 9px; color: var(--dim); text-align: right;
+      flex: 1; font-size: 11px; color: var(--dim); text-align: right;
       font-variant-numeric: tabular-nums;
     }
     .svc2-disk-io span { color: var(--text); font-weight: 500; }
 
+    /* Portfolio web stats section */
+    .svc2-web-stats {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 7px; padding: 8px 14px;
+    }
+    .svc2-web-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .svc2-web-val  { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--green); }
+    .svc2-web-label { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
+    .svc2-web-sep  { width: 1px; height: 28px; background: var(--border); }
+
     /* Action bar */
-    .svc2-actions { display: flex; align-items: center; gap: 4px; }
+    .svc2-actions { display: flex; align-items: center; gap: 6px; }
     .svc2-spacer  { flex: 1; }
 
     .svc2-ctrl-btn {
-      width: 27px; height: 24px; padding: 0;
+      width: 34px; height: 30px; padding: 0;
       display: flex; align-items: center; justify-content: center;
-      border-radius: 5px; cursor: pointer;
+      border-radius: 6px; cursor: pointer;
       background: transparent; border: 1px solid var(--border); color: var(--dim);
       transition: all 0.15s;
     }
@@ -310,8 +323,8 @@
     .svc2-ctrl-btn:disabled { opacity: 0.28; cursor: default; }
 
     .svc2-log-btn {
-      display: inline-flex; align-items: center; gap: 3px;
-      padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 600;
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
       cursor: pointer; background: transparent;
       border: 1px solid var(--border); color: var(--dim); transition: all 0.15s;
     }
@@ -561,21 +574,6 @@
         </div>
       </div>
 
-      <!-- Web Requests -->
-      <div class="card">
-        <div class="card-title">WEB REQUESTS (1 hr)</div>
-        <div class="web-chart-wrap"><canvas id="web-chart"></canvas></div>
-        <div class="web-stats">
-          <div class="web-stat">
-            <div class="web-stat-val" id="web-rpm">—</div>
-            <div class="web-stat-label">req/min</div>
-          </div>
-          <div class="web-stat">
-            <div class="web-stat-val" id="web-total">—</div>
-            <div class="web-stat-label">total (1hr)</div>
-          </div>
-        </div>
-      </div>
 
     </div>
 
@@ -603,6 +601,6 @@
   </div><!-- /panel-wrap -->
 
 </div>
-<script src="/app.js?v=9"></script>
+<script src="/app.js?v=11"></script>
 </body>
 </html>

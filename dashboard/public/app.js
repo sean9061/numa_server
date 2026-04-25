@@ -106,7 +106,6 @@ function pushHistory(d) {
     net_tx:  d.network?.tx_sec  ?? null,
     disk_rx:   d.disk_io?.rx_sec  ?? null,
     disk_wx:   d.disk_io?.wx_sec  ?? null,
-    web_rpm:   d.web_rpm          ?? null,
     pow_total: d.power?.total     ?? null,
     pow_cpu:   d.power?.cpu       ?? null,
     pow_gpu:   d.power?.gpu       ?? null,
@@ -144,7 +143,6 @@ function rebuildCharts() {
     [0, pad(entries.map(e => e.net_rx ?? 0), 0)],
     [1, pad(entries.map(e => e.net_tx ?? 0), 0)],
   ]);
-  resize(webChart, [[0, pad(entries.map(e => e.web_rpm ?? 0), 0)]]);
   resize(diskIOChart, [
     [0, pad(entries.map(e => e.disk_rx ?? 0), 0)],
     [1, pad(entries.map(e => e.disk_wx ?? 0), 0)],
@@ -211,20 +209,6 @@ function makeNetChart(canvasId) {
   });
 }
 
-function makeWebChart(canvasId) {
-  return new Chart(document.getElementById(canvasId), {
-    type: 'line',
-    data: {
-      labels: Array(HIST).fill(''),
-      datasets: [{ data: Array(HIST).fill(0), borderColor: '#22c55e',
-        backgroundColor: 'rgba(34,197,94,0.08)', fill: true }],
-    },
-    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
-      y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
-           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 3 },
-           border: { display: false } } } },
-  });
-}
 
 function makeDiskIOChart(canvasId) {
   return new Chart(document.getElementById(canvasId), {
@@ -285,7 +269,6 @@ const vramCharts = [];
 const cpuChart  = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
 const ramChart  = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
 const netChart  = makeNetChart('net-chart');
-const webChart  = makeWebChart('web-chart');
 const diskChart   = makeDiskDonut('disk-chart');
 const diskIOChart = makeDiskIOChart('disk-io-chart');
 const powerChart  = makePowerChart('power-chart');
@@ -469,12 +452,8 @@ function updateMetrics(d) {
     diskIOChart.update('none');
   }
 
-  // Web requests (merged into metrics message)
-  if (d.web_rpm != null) {
-    setText('web-rpm',   d.web_rpm.toString());
-    setText('web-total', (d.web_total ?? 0).toString());
-    sparkPush(webChart, d.web_rpm);
-  }
+  // Portfolio web requests
+  if (d.portfolio_rpm != null) updatePortfolioWebStats(d.portfolio_rpm, d.portfolio_total ?? 0);
 
   // Load average
   if (d.load) {
@@ -506,8 +485,17 @@ const SERVICE_LINKS = {
 };
 
 const containerStats = {};
-let currentContainers = [];
-let selectedService   = null;
+let currentContainers    = [];
+let selectedService      = null;
+let portfolioWebStats    = { rpm: null, total: null };
+
+function updatePortfolioWebStats(rpm, total) {
+  portfolioWebStats = { rpm, total };
+  const rpmEl   = document.getElementById('svc2-web-rpm');
+  const totalEl = document.getElementById('svc2-web-total');
+  if (rpmEl)   rpmEl.textContent   = rpm.toString();
+  if (totalEl) totalEl.textContent = total.toString();
+}
 
 // SVG icons for control buttons
 const SVG_START   = `<svg width="10" height="10" viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9" fill="currentColor"/></svg>`;
@@ -538,9 +526,10 @@ function renderServiceGrid(containers) {
   }
 
   grid.innerHTML = containers.map(c => {
-    const link      = SERVICE_LINKS[c.name];
-    const stats     = containerStats[c.name];
-    const isRunning = c.state === 'running';
+    const link        = SERVICE_LINKS[c.name];
+    const stats       = containerStats[c.name];
+    const isRunning   = c.state === 'running';
+    const isPortfolio = c.name === 'portfolio-container';
     const cpuPct    = stats?.cpu ?? 0;
     const memPct    = stats?.mem_percent ?? 0;
     const cpuVal    = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
@@ -575,6 +564,18 @@ function renderServiceGrid(containers) {
           <div class="svc2-disk-io" id="svc2-disk-val-${c.name}">↓ <span>${diskR}</span>&ensp;↑ <span>${diskW}</span></div>
         </div>
       </div>
+      ${isPortfolio ? `
+      <div class="svc2-web-stats">
+        <div class="svc2-web-stat">
+          <span class="svc2-web-val" id="svc2-web-rpm">${portfolioWebStats.rpm ?? '—'}</span>
+          <span class="svc2-web-label">req/min</span>
+        </div>
+        <div class="svc2-web-sep"></div>
+        <div class="svc2-web-stat">
+          <span class="svc2-web-val" id="svc2-web-total">${portfolioWebStats.total ?? '—'}</span>
+          <span class="svc2-web-label">total (1hr)</span>
+        </div>
+      </div>` : ''}
       <div class="svc2-actions">
         <button class="svc2-ctrl-btn" title="Start"   ${isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','start')">${SVG_START}</button>
         <button class="svc2-ctrl-btn" title="Stop"    ${!isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','stop')">${SVG_STOP}</button>

@@ -73,17 +73,21 @@ export async function containerAction(nameOrId, action) {
 
 // ── Web request tracking (NPM access log files, server-side) ─────────────────
 
-const NPM_LOG_DIR = process.env.NPM_LOG_DIR ?? '/npm-logs';
+const NPM_LOG_DIR    = process.env.NPM_LOG_DIR    ?? '/npm-logs';
+// Set PORTFOLIO_LOG to a substring of the NPM log filename for the portfolio proxy host
+// e.g. PORTFOLIO_LOG=proxy-host-2  →  only proxy-host-2_access.log is counted
+// Leave empty to count all NPM access logs as portfolio traffic
+const PORTFOLIO_LOG  = process.env.PORTFOLIO_LOG  ?? '';
 const HTTP_METHODS_RE = /\s(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
 
-let webReqWindow = []; // timestamps of HTTP requests (last 60 minutes)
+let portfolioReqWindow = []; // timestamps of portfolio HTTP requests (last 60 minutes)
 const filePositions = new Map(); // filepath -> byte offset
 
-export function getWebStats() {
+export function getPortfolioWebStats() {
   const now = Date.now();
   return {
-    rpm:      webReqWindow.filter(t => t > now - 60_000).length,
-    total_1h: webReqWindow.length,
+    rpm:      portfolioReqWindow.filter(t => t > now - 60_000).length,
+    total_1h: portfolioReqWindow.length,
   };
 }
 
@@ -124,15 +128,17 @@ async function pollNpmLogs() {
 
     const now = Date.now();
     for (const file of accessLogs) {
+      // If PORTFOLIO_LOG is set, only count matching log files
+      if (PORTFOLIO_LOG && !file.includes(PORTFOLIO_LOG)) continue;
       const lines = await tailNewLines(join(NPM_LOG_DIR, file));
       for (const line of lines) {
-        if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
+        if (HTTP_METHODS_RE.test(line)) portfolioReqWindow.push(now);
       }
     }
 
     const cutoff = now - 3_600_000;
-    if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
-      webReqWindow = webReqWindow.filter(t => t > cutoff);
+    if (portfolioReqWindow.length > 0 && portfolioReqWindow[0] < cutoff) {
+      portfolioReqWindow = portfolioReqWindow.filter(t => t > cutoff);
     }
   } catch {
     // log dir not yet accessible, silently skip
