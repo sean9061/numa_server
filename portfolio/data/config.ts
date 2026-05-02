@@ -103,6 +103,15 @@ export const siteConfig = {
   ],
   projects: [
     {
+      title: "SARVision Project",
+      description: "小型ロケットデータ収集・遠隔監視システム\nSony Spresenseでデータを収集・送信し、リアルタイムにダッシュボードへデータを可視化する。",
+      image: "/images/sarvision_dash.webp",
+      video: "",
+      link: "",
+      year: "2026",
+      gltf: "",
+    },
+    {
       title: "Portfolio",
       description: "Next.js + Three.js + Tailwind CSS で制作したポートフォリオサイト",
       image: "/images/portfolio.webp",
@@ -119,6 +128,14 @@ export const siteConfig = {
       link: "",
       year: "2026",
       gltf: "/models/Lami_01.glb",
+    },
+    {
+      title: "牧場ようちえん ぽっこ LP",
+      description: "",
+      image: "/images/pokoapokko.webp",
+      video: "",
+      link: "https://pokoapoko.pinoko.jp/",
+      year: "2025",
     },
     {
       title: "ollama server",
@@ -147,22 +164,31 @@ export const siteConfig = {
       year: "2023/03",
     },
     {
+      title: "AugMuse",
+      description: "高校の課題研究で開発した作品。",
+      image: "",
+      video: "/videos/augmuse.mp4",
+      link: "",
+      year: "2023",
+      portrait: true,
+    },
+    {
+      title: "AR\nスキャンラリー",
+      description: "高校の文化祭の出し物として制作。校内のどこかにあるARマーカーをスキャンし、PCパーツを集め、自作PCを作るというコンセプト。",
+      image: "",
+      video: "/videos/scanrally.mp4",
+      link: "",
+      year: "2023",
+      portrait: true,
+    },
+    {
       title: "Cubic Light Run",
       description: "キューブの周りに形成されたステージを様々なギミックを攻略していきながらゴールに向かう、新感覚 360°横スクロールゲーム。",
       image: "",
       video: "/videos/clr.mov",
       link: "https://unityroom.com/games/clr_v3",
       year: "2023",
-    },
-    {
-      title: "",
-      description: "",
-      image: "",
-      video: "",
-      link: "",
-      year: "",
-      comingSoon: true,
-    },
+    }
   ],
   photos: [
     {

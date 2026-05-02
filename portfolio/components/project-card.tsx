@@ -17,6 +17,7 @@ interface ProjectCardProps {
         video?: string;
         gltf?: string;
         comingSoon?: boolean;
+        portrait?: boolean;
     };
     className?: string;
     delay?: number;
@@ -49,6 +50,46 @@ export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps)
                     <div className="text-3xl">🚧</div>
                     <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">Coming Soon</p>
                     <p className="text-xs text-neutral-400 dark:text-neutral-500">新しいプロジェクトを準備中...</p>
+                </div>
+            </BentoCard>
+        );
+    }
+
+    if (project.portrait && localVideo) {
+        return (
+            <BentoCard className={className} delay={delay}>
+                <div className="group flex flex-1 flex-row gap-4 min-h-0 overflow-hidden">
+                    <Link href={project.link || "#"} target={project.link ? "_blank" : "_self"} className="flex-1 flex flex-col min-w-0 min-h-0">
+                        <h3 className="text-lg font-bold text-neutral-900 dark:text-white whitespace-pre-wrap">
+                            {project.title}
+                        </h3>
+                        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">
+                            {project.description}
+                        </p>
+                        <div className="mt-auto pt-4 flex flex-col gap-2">
+                            <div className="shrink-0 self-start rounded-full border border-neutral-200 px-2 py-1 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+                                {project.year}
+                            </div>
+                            <div className="flex items-center gap-2 text-sm font-medium text-neutral-900 dark:text-white">
+                                View Project
+                                <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                            </div>
+                        </div>
+                    </Link>
+
+                    <div
+                        className="relative shrink-0 self-stretch overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-800"
+                        style={{ aspectRatio: "9/16" }}
+                    >
+                        <video
+                            className="absolute inset-0 h-full w-full object-cover"
+                            src={localVideo}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                        />
+                    </div>
                 </div>
             </BentoCard>
         );
@@ -94,7 +135,7 @@ export function ProjectCard({ project, className, delay = 0 }: ProjectCardProps)
                 <Link href={project.link} target="_blank" className="flex-1 flex flex-col">
                     <div className="flex items-start justify-between">
                         <div>
-                            <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+                            <h3 className="text-lg font-bold text-neutral-900 dark:text-white whitespace-pre-wrap">
                                 {project.title}
                             </h3>
                             <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">
