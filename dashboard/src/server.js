@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authRouter, verifyToken, COOKIE_NAME_EXPORT as COOKIE_NAME } from './auth.js';
 import { collectMetrics } from './metrics.js';
-import { listContainers, getContainerStats, streamContainerLogs, startNpmTracking, getWebStats } from './docker-monitor.js';
+import { listContainers, getContainerStats, containerAction, streamContainerLogs, startNpmTracking, getPortfolioWebStats } from './docker-monitor.js';
 import { pushEntry, getEntries, loadFromDisk, saveToDisk } from './history.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -65,6 +65,17 @@ app.get('/api/containers', apiAuth, async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+['start', 'stop', 'restart'].forEach(action => {
+  app.post(`/api/containers/:name/${action}`, apiAuth, async (req, res) => {
+    try {
+      await containerAction(req.params.name, action);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 });
 
 // WebSocket server — requires auth cookie
@@ -161,9 +172,9 @@ setInterval(async () => {
   if (wss.clients.size === 0) return;
   try {
     const metrics = await collectMetrics();
-    const web = getWebStats();
-    pushEntry(metrics, web.rpm);
-    broadcast({ type: 'metrics', data: { ...metrics, web_rpm: web.rpm, web_total: web.total_1h } });
+    const pWeb = getPortfolioWebStats();
+    pushEntry(metrics, pWeb.rpm);
+    broadcast({ type: 'metrics', data: { ...metrics, portfolio_rpm: pWeb.rpm, portfolio_total: pWeb.total_1h } });
   } catch (err) {
     console.error('[metrics]', err.message);
   }

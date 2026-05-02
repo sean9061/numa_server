@@ -23,7 +23,7 @@ export function pushEntry(metrics, webRpm) {
     net_tx:  metrics.network?.tx_sec  ?? null,
     disk_rx: metrics.disk_io?.rx_sec  ?? null,
     disk_wx: metrics.disk_io?.wx_sec  ?? null,
-    web_rpm: webRpm ?? null,
+    portfolio_rpm: webRpm ?? null,
   });
   if (ring.length > MAX_ENTRIES) ring.shift();
 }

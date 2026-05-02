@@ -7,6 +7,9 @@ const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
 // Active log stream handles per container
 const activeStreams = new Map();
 
+// Previous blkio values for rate calculation
+const prevBlkio = new Map(); // name -> { read, write, time }
+
 export async function listContainers() {
   const list = await docker.listContainers({ all: true });
   return list.map(c => ({
@@ -32,30 +35,59 @@ export async function getContainerStats(nameOrId) {
     const memUsed = stats.memory_stats.usage - (stats.memory_stats.stats?.cache ?? 0);
     const memLimit = stats.memory_stats.limit;
 
+    // Disk I/O rate from blkio_stats
+    const blkio = stats.blkio_stats?.io_service_bytes_recursive ?? [];
+    const readBytes  = blkio.filter(e => e.op === 'Read').reduce((s, e) => s + e.value, 0);
+    const writeBytes = blkio.filter(e => e.op === 'Write').reduce((s, e) => s + e.value, 0);
+    const now = Date.now();
+    const prev = prevBlkio.get(nameOrId);
+    let disk_r_sec = null, disk_w_sec = null;
+    if (prev) {
+      const dt = (now - prev.time) / 1000;
+      if (dt > 0) {
+        disk_r_sec = Math.max(0, Math.round((readBytes  - prev.read)  / dt));
+        disk_w_sec = Math.max(0, Math.round((writeBytes - prev.write) / dt));
+      }
+    }
+    prevBlkio.set(nameOrId, { read: readBytes, write: writeBytes, time: now });
+
     return {
       cpu: Math.round(cpuPercent * 10) / 10,
       mem_used: memUsed,
       mem_total: memLimit,
       mem_percent: memLimit > 0 ? Math.round((memUsed / memLimit) * 100) : 0,
+      disk_r_sec,
+      disk_w_sec,
     };
   } catch {
     return null;
   }
 }
 
+export async function containerAction(nameOrId, action) {
+  const c = docker.getContainer(nameOrId);
+  if (action === 'start')   await c.start();
+  if (action === 'stop')    await c.stop();
+  if (action === 'restart') await c.restart();
+}
+
 // ── Web request tracking (NPM access log files, server-side) ─────────────────
 
-const NPM_LOG_DIR = process.env.NPM_LOG_DIR ?? '/npm-logs';
+const NPM_LOG_DIR    = process.env.NPM_LOG_DIR    ?? '/npm-logs';
+// Set PORTFOLIO_LOG to a substring of the NPM log filename for the portfolio proxy host
+// e.g. PORTFOLIO_LOG=proxy-host-2  →  only proxy-host-2_access.log is counted
+// Leave empty to count all NPM access logs as portfolio traffic
+const PORTFOLIO_LOG  = process.env.PORTFOLIO_LOG  ?? '';
 const HTTP_METHODS_RE = /\s(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH|CONNECT)\s/;
 
-let webReqWindow = []; // timestamps of HTTP requests (last 60 minutes)
+let portfolioReqWindow = []; // timestamps of portfolio HTTP requests (last 60 minutes)
 const filePositions = new Map(); // filepath -> byte offset
 
-export function getWebStats() {
+export function getPortfolioWebStats() {
   const now = Date.now();
   return {
-    rpm:      webReqWindow.filter(t => t > now - 60_000).length,
-    total_1h: webReqWindow.length,
+    rpm:      portfolioReqWindow.filter(t => t > now - 60_000).length,
+    total_1h: portfolioReqWindow.length,
   };
 }
 
@@ -96,15 +128,17 @@ async function pollNpmLogs() {
 
     const now = Date.now();
     for (const file of accessLogs) {
+      // If PORTFOLIO_LOG is set, only count matching log files
+      if (PORTFOLIO_LOG && !file.includes(PORTFOLIO_LOG)) continue;
       const lines = await tailNewLines(join(NPM_LOG_DIR, file));
       for (const line of lines) {
-        if (HTTP_METHODS_RE.test(line)) webReqWindow.push(now);
+        if (HTTP_METHODS_RE.test(line)) portfolioReqWindow.push(now);
       }
     }
 
     const cutoff = now - 3_600_000;
-    if (webReqWindow.length > 0 && webReqWindow[0] < cutoff) {
-      webReqWindow = webReqWindow.filter(t => t > cutoff);
+    if (portfolioReqWindow.length > 0 && portfolioReqWindow[0] < cutoff) {
+      portfolioReqWindow = portfolioReqWindow.filter(t => t > cutoff);
     }
   } catch {
     // log dir not yet accessible, silently skip

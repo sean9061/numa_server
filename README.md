@@ -129,9 +129,11 @@ Internet
 | 役割 | サーバーリアルタイム監視ダッシュボード |
 | エンドポイント | `https://dash.s3an.dev` |
 | 認証 | JWT + bcrypt パスワード認証 (httpOnly Cookie) |
-| 監視項目 | CPU/GPU/RAM/VRAM・ネットワーク・ディスク・温度・電力・コンテナログ |
+| 監視項目 | CPU/GPU/RAM/VRAM・ネットワーク・ディスク(内訳+I/O)・温度・電力(CPU+GPU+DRAM) |
+| サービス管理 | コンテナ一覧カードグリッド・CPU/MEM/Disk使用率・start/stop/restart操作・ログ表示 |
+| アクセス解析 | Portfolioのreq/min・1時間合計（NPMアクセスログ集計） |
 | ネットワーク | `proxy_net` |
-| 環境変数 | `dashboard/.env` (パスワード・JWTシークレット) |
+| 環境変数 | `dashboard/.env` (`DASHBOARD_PASSWORD`, `JWT_SECRET`, `PORTFOLIO_LOG`) |
 
 ---
 
@@ -323,6 +325,9 @@ cd dashboard
 cp .env.example .env
 # DASHBOARD_PASSWORD: ログインパスワードを設定
 # JWT_SECRET: openssl rand -hex 64 で生成した値を設定
+# PORTFOLIO_LOG: (任意) NPMログファイル名の一部を指定してPortfolioのアクセスのみ集計
+#   例: PORTFOLIO_LOG=proxy-host-2  →  proxy-host-2_access.log のみをカウント
+#   未設定の場合は全NPMアクセスログを合算
 ```
 
 ### 2. 起動 (本番)

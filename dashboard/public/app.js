@@ -22,7 +22,7 @@ let activePanel = 'server';
 function switchPanel(name) {
   activePanel = name;
   document.getElementById('panel-server').style.display   = name === 'server'   ? 'grid' : 'none';
-  document.getElementById('panel-services').style.display = name === 'services' ? 'grid' : 'none';
+  document.getElementById('panel-services').style.display = name === 'services' ? 'flex' : 'none';
   document.querySelectorAll('.pt-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.panel === name)
   );
@@ -104,9 +104,12 @@ function pushHistory(d) {
     ram:     d.ram?.percent     ?? null,
     net_rx:  d.network?.rx_sec  ?? null,
     net_tx:  d.network?.tx_sec  ?? null,
-    disk_rx: d.disk_io?.rx_sec  ?? null,
-    disk_wx: d.disk_io?.wx_sec  ?? null,
-    web_rpm: d.web_rpm          ?? null,
+    disk_rx:   d.disk_io?.rx_sec  ?? null,
+    disk_wx:   d.disk_io?.wx_sec  ?? null,
+    pow_total: d.power?.total     ?? null,
+    pow_cpu:   d.power?.cpu       ?? null,
+    pow_gpu:   d.power?.gpu       ?? null,
+    pow_dram:  d.power?.dram      ?? null,
   });
   if (historyBuffer.length > MAX_HIST) historyBuffer.shift();
 }
@@ -140,7 +143,16 @@ function rebuildCharts() {
     [0, pad(entries.map(e => e.net_rx ?? 0), 0)],
     [1, pad(entries.map(e => e.net_tx ?? 0), 0)],
   ]);
-  resize(webChart, [[0, pad(entries.map(e => e.web_rpm ?? 0), 0)]]);
+  resize(diskIOChart, [
+    [0, pad(entries.map(e => e.disk_rx ?? 0), 0)],
+    [1, pad(entries.map(e => e.disk_wx ?? 0), 0)],
+  ]);
+  resize(powerChart, [
+    [0, pad(entries.map(e => e.pow_total))],
+    [1, pad(entries.map(e => e.pow_cpu))],
+    [2, pad(entries.map(e => e.pow_gpu))],
+    [3, pad(entries.map(e => e.pow_dram))],
+  ]);
 
   if (gpuCardsReady) {
     gpuCharts.forEach((chart, i) =>
@@ -197,18 +209,56 @@ function makeNetChart(canvasId) {
   });
 }
 
-function makeWebChart(canvasId) {
+
+function makeDiskIOChart(canvasId) {
   return new Chart(document.getElementById(canvasId), {
     type: 'line',
     data: {
       labels: Array(HIST).fill(''),
-      datasets: [{ data: Array(HIST).fill(0), borderColor: '#22c55e',
-        backgroundColor: 'rgba(34,197,94,0.08)', fill: true }],
+      datasets: [
+        { data: Array(HIST).fill(0), borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', fill: true },
+        { data: Array(HIST).fill(0), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', fill: true },
+      ],
     },
     options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
       y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
-           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 3 },
-           border: { display: false } } } },
+           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 3,
+                    callback: v => fmtBps(v) }, border: { display: false } } } },
+  });
+}
+
+function makePowerChart(canvasId) {
+  const mk = (color, bg, width = 1.5) => ({
+    data: Array(HIST).fill(null),
+    borderColor: color, backgroundColor: bg,
+    fill: false, borderWidth: width, spanGaps: true,
+  });
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: Array(HIST).fill(''),
+      datasets: [
+        mk('#e2e8f0', 'transparent', 2),            // Total (bright white, thicker)
+        mk('#3b82f6', 'rgba(59,130,246,0.08)'),     // CPU
+        mk('#f59e0b', 'rgba(245,158,11,0.08)'),     // GPU
+        mk('#818cf8', 'rgba(129,140,248,0.08)'),    // DRAM
+      ],
+    },
+    options: { ...BASE_OPTS, scales: { ...BASE_OPTS.scales,
+      y: { display: true, min: 0, grid: { color: 'rgba(30,45,74,0.5)' },
+           ticks: { color: '#4e6282', font: { size: 9 }, maxTicksLimit: 4,
+                    callback: v => `${v}W` }, border: { display: false } } } },
+  });
+}
+
+function makeDiskDonut(canvasId) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'doughnut',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0, hoverOffset: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '72%', animation: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    },
   });
 }
 
@@ -216,10 +266,15 @@ function makeWebChart(canvasId) {
 const gpuCharts  = [];
 const vramCharts = [];
 
-const cpuChart = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
-const ramChart = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
-const netChart = makeNetChart('net-chart');
-const webChart = makeWebChart('web-chart');
+const cpuChart  = makeSparkline('cpu-chart', '#3b82f6', 'rgba(59,130,246,0.10)');
+const ramChart  = makeSparkline('ram-chart', '#22c55e', 'rgba(34,197,94,0.10)');
+const netChart  = makeNetChart('net-chart');
+const diskChart   = makeDiskDonut('disk-chart');
+const diskIOChart = makeDiskIOChart('disk-io-chart');
+const powerChart  = makePowerChart('power-chart');
+
+const DISK_COLORS     = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];
+const DISK_COLORS_DIM = ['rgba(59,130,246,0.18)', 'rgba(129,140,248,0.18)', 'rgba(34,197,94,0.18)', 'rgba(245,158,11,0.18)', 'rgba(239,68,68,0.18)'];
 
 function sparkPush(chart, value, dsIdx = 0) {
   chart.data.datasets[dsIdx].data.shift();
@@ -334,8 +389,9 @@ function updateMetrics(d) {
   if (d.ram) {
     const p = d.ram.percent ?? 0;
     setGauge('ram-gauge', p, 'var(--green)');
-    setText('ram-pct',  `${p}%`, colorClass(p));
-    setText('ram-used', fmtBytes(d.ram.used));
+    setText('ram-pct',    `${p}%`, colorClass(p));
+    setText('ram-used',   fmtBytes(d.ram.used));
+    setText('ram-cached', fmtBytes((d.ram.cached ?? 0) + (d.ram.buffers ?? 0)));
     const swapPct = d.ram.swap_total > 0
       ? Math.round((d.ram.swap_used / d.ram.swap_total) * 100) : 0;
     setText('ram-swap', d.ram.swap_total > 0 ? `${swapPct}%` : '—');
@@ -352,36 +408,72 @@ function updateMetrics(d) {
     netChart.update('none');
   }
 
-  // Disk — aggregate total
+  // Disk — donut chart + legend (per-disk used/free breakdown)
   if (d.disk && d.disk.length > 0) {
     const totalUsed = d.disk.reduce((s, x) => s + (x.used || 0), 0);
     const totalSize = d.disk.reduce((s, x) => s + (x.size || 0), 0);
-    const pct = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
-    const color = pct >= 85 ? 'var(--red)' : pct >= 70 ? 'var(--amber)' : 'var(--green)';
+    const pct  = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
+
+    const segLabels = [], segData = [], segColors = [];
+    d.disk.forEach((disk, i) => {
+      const free = Math.max(0, disk.size - disk.used);
+      segLabels.push(disk.mount + ' used', disk.mount + ' free');
+      segData.push(disk.used, free);
+      segColors.push(DISK_COLORS[i % DISK_COLORS.length], DISK_COLORS_DIM[i % DISK_COLORS_DIM.length]);
+    });
+
+    diskChart.data.labels = segLabels;
+    diskChart.data.datasets[0].data = segData;
+    diskChart.data.datasets[0].backgroundColor = segColors;
+    diskChart.update('none');
+
     setText('disk-pct-text', `${pct}%`, colorClass(pct));
-    const bar = document.getElementById('disk-bar');
-    if (bar) { bar.style.width = `${pct}%`; bar.style.background = color; }
-    setText('disk-used-text', `${fmtBytes(totalUsed)} / ${fmtBytes(totalSize)}`);
+
+    const legend = document.getElementById('disk-legend');
+    if (legend) {
+      legend.innerHTML = d.disk.map((disk, i) => {
+        const diskPct = disk.size > 0 ? Math.round((disk.used / disk.size) * 100) : 0;
+        return `<div class="disk-legend-item">
+          <span class="disk-legend-dot" style="background:${DISK_COLORS[i % DISK_COLORS.length]}"></span>
+          <span class="disk-legend-mount">${disk.mount}</span>
+          <span class="disk-legend-val">${fmtBytes(disk.used)} / ${fmtBytes(disk.size)}</span>
+          <span class="disk-legend-pct" style="color:${diskPct>=90?'var(--red)':diskPct>=75?'var(--amber)':'var(--dim)'}">${diskPct}%</span>
+        </div>`;
+      }).join('');
+    }
   }
 
   // Disk I/O
   if (d.disk_io) {
     setText('disk-rx', fmtBps(d.disk_io.rx_sec));
     setText('disk-wx', fmtBps(d.disk_io.wx_sec));
+    sparkPush(diskIOChart, d.disk_io.rx_sec ?? 0, 0);
+    sparkPush(diskIOChart, d.disk_io.wx_sec ?? 0, 1);
+    diskIOChart.update('none');
   }
 
-  // Web requests (merged into metrics message)
-  if (d.web_rpm != null) {
-    setText('web-rpm',   d.web_rpm.toString());
-    setText('web-total', (d.web_total ?? 0).toString());
-    sparkPush(webChart, d.web_rpm);
-  }
+  // Portfolio web requests
+  if (d.portfolio_rpm != null) updatePortfolioWebStats(d.portfolio_rpm, d.portfolio_total ?? 0);
 
   // Load average
   if (d.load) {
     setText('load-1',  d.load.m1?.toFixed(2)  ?? '—');
     setText('load-5',  d.load.m5?.toFixed(2)  ?? '—');
     setText('load-15', d.load.m15?.toFixed(2) ?? '—');
+  }
+
+  // Power
+  if (d.power) {
+    const fmt = w => w != null ? `${w}W` : '—';
+    setText('pow-total', fmt(d.power.total));
+    setText('pow-cpu',   fmt(d.power.cpu));
+    setText('pow-gpu',   fmt(d.power.gpu));
+    setText('pow-dram',  fmt(d.power.dram));
+    sparkPush(powerChart, d.power.total, 0);
+    sparkPush(powerChart, d.power.cpu,   1);
+    sparkPush(powerChart, d.power.gpu,   2);
+    sparkPush(powerChart, d.power.dram,  3);
+    powerChart.update('none');
   }
 }
 
@@ -392,58 +484,24 @@ const SERVICE_LINKS = {
   'ollama':              'https://ollama.s3an.dev',
 };
 
-// Container stats from container_stats WebSocket messages
 const containerStats = {};
+let currentContainers    = [];
+let selectedService      = null;
+let portfolioWebStats    = { rpm: null, total: null };
 
-let currentContainers = [];
-let selectedService = null;
-
-function updateDocker(containers) {
-  currentContainers = containers;
-  renderServiceCards(containers);
-  // Update detail panel stats if a service is selected
-  if (selectedService) {
-    const c = containers.find(x => x.name === selectedService);
-    if (c) updateDetailMeta(c);
-  }
+function updatePortfolioWebStats(rpm, total) {
+  portfolioWebStats = { rpm, total };
+  const rpmEl   = document.getElementById('svc2-web-rpm');
+  const totalEl = document.getElementById('svc2-web-total');
+  if (rpmEl)   rpmEl.textContent   = rpm.toString();
+  if (totalEl) totalEl.textContent = total.toString();
 }
 
-function renderServiceCards(containers) {
-  const list = document.getElementById('svc-cards-list');
-  if (!containers.length) {
-    list.innerHTML = '<div style="color:var(--dim);font-size:12px">No containers found</div>';
-    return;
-  }
-
-  list.innerHTML = containers.map(c => {
-    const dotClass   = dotClassFor(c.state);
-    const badgeClass = c.state === 'running' ? 'running'
-                     : c.state === 'exited'  ? 'exited'
-                     : c.state === 'paused'  ? 'paused' : 'other';
-    const link = SERVICE_LINKS[c.name];
-    const stats = containerStats[c.name];
-    const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
-    const memVal = stats?.mem_used != null ? fmtBytes(stats.mem_used)  : '—';
-    const selected = c.name === selectedService ? ' selected' : '';
-    return `<div class="svc-card${selected}" data-name="${c.name}" onclick="selectService('${c.name}')">
-      <div class="svc-card-header">
-        <span class="status-dot ${dotClass}"></span>
-        <span class="svc-card-name">${c.name}</span>
-        <span class="svc-state-badge ${badgeClass}">${c.state}</span>
-      </div>
-      <div class="svc-card-meta">
-        <span>${c.image}</span>
-        <span class="svc-card-meta-sep">·</span>
-        <span>${c.status}</span>
-      </div>
-      <div class="svc-card-stats">
-        <div class="svc-stat-chip" id="svc-cpu-chip-${c.name}">CPU <span>${cpuVal}</span></div>
-        <div class="svc-stat-chip" id="svc-mem-chip-${c.name}">MEM <span>${memVal}</span></div>
-      </div>
-      ${link ? `<div class="svc-card-footer"><a class="svc-link-btn" href="${link}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open ↗</a></div>` : ''}
-    </div>`;
-  }).join('');
-}
+// SVG icons for control buttons
+const SVG_START   = `<svg width="10" height="10" viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9" fill="currentColor"/></svg>`;
+const SVG_STOP    = `<svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" rx="1" fill="currentColor"/></svg>`;
+const SVG_RESTART = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>`;
+const SVG_LOGS    = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="15" y2="18"/></svg>`;
 
 function dotClassFor(state) {
   return state === 'running' ? 'status-running'
@@ -451,94 +509,148 @@ function dotClassFor(state) {
        : state === 'paused'  ? 'status-paused' : 'status-other';
 }
 
-function updateContainerStats(statsArray) {
-  // statsArray: [{ name, stats: { cpu, mem_used, mem_limit, mem_percent } }]
-  statsArray.forEach(s => { containerStats[s.name] = s.stats; });
-  // Update chips in service cards
-  statsArray.forEach(({ name, stats }) => {
-    const cpuChip = document.getElementById(`svc-cpu-chip-${name}`);
-    const memChip = document.getElementById(`svc-mem-chip-${name}`);
-    if (cpuChip) cpuChip.innerHTML = `CPU <span>${stats.cpu != null ? stats.cpu.toFixed(1) + '%' : '—'}</span>`;
-    if (memChip) memChip.innerHTML = `MEM <span>${stats.mem_used != null ? fmtBytes(stats.mem_used) : '—'}</span>`;
-  });
-  // Update detail panel stats if showing
-  if (selectedService) {
-    const s = containerStats[selectedService];
-    if (s) {
-      const detailCpu = document.getElementById('svc-detail-cpu');
-      const detailMem = document.getElementById('svc-detail-mem');
-      if (detailCpu) detailCpu.textContent = s.cpu != null ? `${s.cpu.toFixed(1)}%` : '—';
-      if (detailMem) detailMem.textContent = s.mem_used != null
-        ? `${fmtBytes(s.mem_used)}${s.mem_limit ? ' / ' + fmtBytes(s.mem_limit) : ''}` : '—';
-    }
-  }
+function badgeClassFor(state) {
+  return state === 'running' ? 'running' : state === 'exited' ? 'exited' : state === 'paused' ? 'paused' : 'other';
 }
 
-// ── Service selection & detail panel ─────────────────────────────────────────
-function selectService(name) {
-  // Update card selection state
-  document.querySelectorAll('.svc-card').forEach(el => {
-    el.classList.toggle('selected', el.dataset.name === name);
-  });
-
-  selectedService = name;
-  const c = currentContainers.find(x => x.name === name);
-  renderDetailPanel(c);
-
-  // Subscribe to logs
-  ws?.send(JSON.stringify({ type: 'subscribe_logs', container: name }));
+function updateDocker(containers) {
+  currentContainers = containers;
+  renderServiceGrid(containers);
 }
 
-function renderDetailPanel(c) {
-  const col = document.getElementById('svc-detail-col');
-  if (!c) {
-    col.innerHTML = '<div class="svc-detail-empty">Service not found</div>';
+function renderServiceGrid(containers) {
+  const grid = document.getElementById('svc-grid');
+  if (!containers.length) {
+    grid.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px">No containers found</div>';
     return;
   }
 
-  const link = SERVICE_LINKS[c.name];
-  const dotClass = dotClassFor(c.state);
-  const badgeClass = c.state === 'running' ? 'running'
-                   : c.state === 'exited'  ? 'exited'
-                   : c.state === 'paused'  ? 'paused' : 'other';
-  const stats = containerStats[c.name];
-  const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
-  const memVal = stats?.mem_used != null
-    ? `${fmtBytes(stats.mem_used)}${stats.mem_limit ? ' / ' + fmtBytes(stats.mem_limit) : ''}` : '—';
+  grid.innerHTML = containers.map(c => {
+    const link        = SERVICE_LINKS[c.name];
+    const stats       = containerStats[c.name];
+    const isRunning   = c.state === 'running';
+    const isPortfolio = c.name === 'portfolio-container';
+    const cpuPct    = stats?.cpu ?? 0;
+    const memPct    = stats?.mem_percent ?? 0;
+    const cpuVal    = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
+    const memVal    = stats?.mem_used != null ? fmtBytes(stats.mem_used)  : '—';
+    const memTot    = stats?.mem_total != null ? ` / ${fmtBytes(stats.mem_total)}` : '';
+    const diskR     = stats?.disk_r_sec != null ? fmtBps(stats.disk_r_sec) : '—';
+    const diskW     = stats?.disk_w_sec != null ? fmtBps(stats.disk_w_sec) : '—';
+    const cpuColor  = cpuPct >= 85 ? 'var(--red)' : cpuPct >= 65 ? 'var(--amber)' : 'var(--blue)';
+    const memColor  = memPct >= 85 ? 'var(--red)' : memPct >= 65 ? 'var(--amber)' : 'var(--green)';
+    const logActive = selectedService === c.name ? ' active' : '';
 
-  col.innerHTML = `
-    <div class="svc-detail-header">
-      <span class="status-dot ${dotClass}" style="width:8px;height:8px"></span>
-      <span class="svc-detail-name">${c.name}</span>
-      <span class="svc-state-badge ${badgeClass}" style="font-size:10px">${c.state}</span>
-      <div class="header-spacer"></div>
-      <div class="svc-detail-actions">
-        ${link ? `<a class="svc-detail-action-btn" href="${link}" target="_blank" rel="noopener">Open ↗</a>` : ''}
+    return `<div class="svc2-card" data-name="${c.name}">
+      <div class="svc2-header">
+        <span class="status-dot ${dotClassFor(c.state)}"></span>
+        <span class="svc2-name">${c.name}</span>
+        <span class="svc-state-badge ${badgeClassFor(c.state)}">${c.state}</span>
       </div>
-    </div>
-    <div class="svc-detail-meta">
-      <span>${c.image}</span>
-      <span>·</span>
-      <span>${c.status}</span>
-    </div>
-    <div class="svc-detail-stats">
-      <div class="svc-detail-stat-chip">CPU <span id="svc-detail-cpu">${cpuVal}</span></div>
-      <div class="svc-detail-stat-chip">MEM <span id="svc-detail-mem">${memVal}</span></div>
-    </div>
-    <div class="svc-detail-divider"></div>
-    <div class="svc-detail-log-title">LOGS</div>
-    <div class="log-view" id="svc-log-view"><span style="color:var(--dim)">Loading logs...</span></div>
-  `;
+      <div class="svc2-meta">${c.image} · ${c.status}</div>
+      <div class="svc2-bars">
+        <div class="svc2-bar-row">
+          <span class="svc2-bar-label">CPU</span>
+          <div class="svc2-bar-track"><div class="svc2-bar-fill" id="svc2-cpu-bar-${c.name}" style="width:${Math.min(100,cpuPct)}%;background:${cpuColor}"></div></div>
+          <span class="svc2-bar-val" id="svc2-cpu-val-${c.name}">${cpuVal}</span>
+        </div>
+        <div class="svc2-bar-row">
+          <span class="svc2-bar-label">MEM</span>
+          <div class="svc2-bar-track"><div class="svc2-bar-fill" id="svc2-mem-bar-${c.name}" style="width:${Math.min(100,memPct)}%;background:${memColor}"></div></div>
+          <span class="svc2-bar-val" id="svc2-mem-val-${c.name}">${memVal}${memTot}</span>
+        </div>
+        <div class="svc2-bar-row">
+          <span class="svc2-bar-label">DISK</span>
+          <div class="svc2-disk-io" id="svc2-disk-val-${c.name}">↓ <span>${diskR}</span>&ensp;↑ <span>${diskW}</span></div>
+        </div>
+      </div>
+      ${isPortfolio ? `
+      <div class="svc2-web-stats">
+        <div class="svc2-web-stat">
+          <span class="svc2-web-val" id="svc2-web-rpm">${portfolioWebStats.rpm ?? '—'}</span>
+          <span class="svc2-web-label">req/min</span>
+        </div>
+        <div class="svc2-web-sep"></div>
+        <div class="svc2-web-stat">
+          <span class="svc2-web-val" id="svc2-web-total">${portfolioWebStats.total ?? '—'}</span>
+          <span class="svc2-web-label">total (1hr)</span>
+        </div>
+      </div>` : ''}
+      <div class="svc2-actions">
+        <button class="svc2-ctrl-btn" title="Start"   ${isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','start')">${SVG_START}</button>
+        <button class="svc2-ctrl-btn" title="Stop"    ${!isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','stop')">${SVG_STOP}</button>
+        <button class="svc2-ctrl-btn" title="Restart" ${!isRunning ? 'disabled' : ''} onclick="svcControl('${c.name}','restart')">${SVG_RESTART}</button>
+        <div class="svc2-spacer"></div>
+        <button class="svc2-log-btn${logActive}" onclick="toggleLogs('${c.name}')">${SVG_LOGS} Logs</button>
+        ${link ? `<a class="svc-link-btn" href="${link}" target="_blank" rel="noopener">↗ Open</a>` : ''}
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function updateDetailMeta(c) {
-  const badgeClass = c.state === 'running' ? 'running'
-                   : c.state === 'exited'  ? 'exited'
-                   : c.state === 'paused'  ? 'paused' : 'other';
-  const dot = document.querySelector('#svc-detail-col .status-dot');
-  if (dot) dot.className = `status-dot ${dotClassFor(c.state)}`;
-  const badge = document.querySelector('#svc-detail-col .svc-state-badge');
-  if (badge) { badge.className = `svc-state-badge ${badgeClass}`; badge.textContent = c.state; }
+function updateContainerStats(statsArray) {
+  statsArray.forEach(s => { containerStats[s.name] = s.stats; });
+  statsArray.forEach(({ name, stats }) => {
+    if (!stats) return;
+    const cpuPct   = stats.cpu ?? 0;
+    const memPct   = stats.mem_percent ?? 0;
+    const cpuColor = cpuPct >= 85 ? 'var(--red)' : cpuPct >= 65 ? 'var(--amber)' : 'var(--blue)';
+    const memColor = memPct >= 85 ? 'var(--red)' : memPct >= 65 ? 'var(--amber)' : 'var(--green)';
+
+    const cpuBar  = document.getElementById(`svc2-cpu-bar-${name}`);
+    const cpuVal  = document.getElementById(`svc2-cpu-val-${name}`);
+    const memBar  = document.getElementById(`svc2-mem-bar-${name}`);
+    const memVal  = document.getElementById(`svc2-mem-val-${name}`);
+    const diskVal = document.getElementById(`svc2-disk-val-${name}`);
+
+    if (cpuBar) { cpuBar.style.width = `${Math.min(100, cpuPct)}%`; cpuBar.style.background = cpuColor; }
+    if (cpuVal) cpuVal.textContent = stats.cpu != null ? `${stats.cpu.toFixed(1)}%` : '—';
+    if (memBar) { memBar.style.width = `${Math.min(100, memPct)}%`; memBar.style.background = memColor; }
+    if (memVal) {
+      const u = stats.mem_used  != null ? fmtBytes(stats.mem_used)  : '—';
+      const t = stats.mem_total != null ? ` / ${fmtBytes(stats.mem_total)}` : '';
+      memVal.textContent = u + t;
+    }
+    if (diskVal) {
+      const r = stats.disk_r_sec != null ? fmtBps(stats.disk_r_sec) : '—';
+      const w = stats.disk_w_sec != null ? fmtBps(stats.disk_w_sec) : '—';
+      diskVal.innerHTML = `↓ <span>${r}</span>&ensp;↑ <span>${w}</span>`;
+    }
+  });
+}
+
+function toggleLogs(name) {
+  if (selectedService === name) { closeLogs(); return; }
+
+  if (selectedService) ws?.send(JSON.stringify({ type: 'unsubscribe_logs', container: selectedService }));
+  selectedService = name;
+
+  const drawer = document.getElementById('svc-log-drawer');
+  drawer.style.display = 'flex';
+  document.getElementById('svc-log-drawer-title').textContent = `LOGS — ${name}`;
+  document.getElementById('svc-log-view').innerHTML = '<span style="color:var(--dim)">Loading...</span>';
+
+  document.querySelectorAll('.svc2-log-btn').forEach(btn =>
+    btn.classList.toggle('active', btn.closest('.svc2-card')?.dataset.name === name)
+  );
+
+  ws?.send(JSON.stringify({ type: 'subscribe_logs', container: name }));
+}
+
+function closeLogs() {
+  if (selectedService) ws?.send(JSON.stringify({ type: 'unsubscribe_logs', container: selectedService }));
+  selectedService = null;
+  document.getElementById('svc-log-drawer').style.display = 'none';
+  document.querySelectorAll('.svc2-log-btn').forEach(btn => btn.classList.remove('active'));
+}
+
+async function svcControl(name, action) {
+  try {
+    const r = await fetch(`/api/containers/${encodeURIComponent(name)}/${action}`, { method: 'POST' });
+    if (!r.ok) console.error(`[svcControl] ${action} ${name}:`, (await r.json()).error);
+  } catch (err) {
+    console.error(`[svcControl] ${action} ${name}:`, err);
+  }
 }
 
 // ── Log streaming ──────────────────────────────────────────────────────────────
