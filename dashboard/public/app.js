@@ -16,17 +16,170 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// ── Canvas layout constants ───────────────────────────────────────────────────
+const CANVAS_W   = 1268;
+const SERVER_H   = 564;   // row1(260) + gap(12) + row2(280) + gap(12)
+const SERVICES_Y = 576;
+
+// ── PanZoom ───────────────────────────────────────────────────────────────────
+class PanZoom {
+  constructor(vpEl, canvasEl) {
+    this.vp    = vpEl;
+    this.el    = canvasEl;
+    this.x     = 0;
+    this.y     = 0;
+    this.scale = 1;
+    this.MIN   = 0.18;
+    this.MAX   = 3.0;
+    this._drag = false;
+    this._sx = 0; this._sy = 0; this._ox = 0; this._oy = 0;
+    this._bind();
+    this._initView();
+  }
+
+  _commit(animated = false) {
+    if (animated) {
+      this.el.style.transition = 'transform 0.38s cubic-bezier(0.4,0,0.2,1)';
+      clearTimeout(this._tId);
+      this._tId = setTimeout(() => { this.el.style.transition = 'none'; }, 400);
+    } else {
+      this.el.style.transition = 'none';
+    }
+    this.el.style.transform = `translate(${this.x}px,${this.y}px) scale(${this.scale})`;
+  }
+
+  _clamp(s) { return Math.min(this.MAX, Math.max(this.MIN, s)); }
+
+  _zoomAt(cx, cy, factor) {
+    const ns = this._clamp(this.scale * factor);
+    const r  = this.vp.getBoundingClientRect();
+    const lx = cx - r.left, ly = cy - r.top;
+    this.x = lx - (lx - this.x) * (ns / this.scale);
+    this.y = ly - (ly - this.y) * (ns / this.scale);
+    this.scale = ns;
+    this._commit();
+  }
+
+  _bind() {
+    const vp = this.vp;
+
+    // Mouse drag
+    vp.addEventListener('mousedown', e => {
+      if (e.button !== 0) return;
+      if (e.target.closest('button,a,input,select,.log-view,canvas')) return;
+      this._drag = true;
+      this._sx = e.clientX; this._sy = e.clientY;
+      this._ox = this.x;    this._oy = this.y;
+      vp.classList.add('is-dragging');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!this._drag) return;
+      this.x = this._ox + e.clientX - this._sx;
+      this.y = this._oy + e.clientY - this._sy;
+      this._commit();
+    });
+    window.addEventListener('mouseup', () => {
+      this._drag = false;
+      vp.classList.remove('is-dragging');
+    });
+
+    // Wheel zoom
+    vp.addEventListener('wheel', e => {
+      e.preventDefault();
+      this._zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.1 : 1 / 1.1);
+    }, { passive: false });
+
+    // Touch pan + pinch
+    let t1x, t1y, t1ox, t1oy, pinchDist = 0, pinchMx, pinchMy, touchPan = false;
+
+    vp.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        if (t.target.closest('button,a,input,select,.log-view,canvas')) return;
+        touchPan = true;
+        t1x = t.clientX; t1y = t.clientY;
+        t1ox = this.x;   t1oy = this.y;
+      } else if (e.touches.length === 2) {
+        touchPan = false;
+        const [a, b] = e.touches;
+        pinchDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+        pinchMx   = (a.clientX + b.clientX) / 2;
+        pinchMy   = (a.clientY + b.clientY) / 2;
+        t1ox = this.x; t1oy = this.y;
+      }
+    }, { passive: true });
+
+    vp.addEventListener('touchmove', e => {
+      if (e.target.closest('.log-view')) return;
+      e.preventDefault();
+      if (e.touches.length === 1 && touchPan) {
+        const t = e.touches[0];
+        this.x = t1ox + t.clientX - t1x;
+        this.y = t1oy + t.clientY - t1y;
+        this._commit();
+      } else if (e.touches.length === 2) {
+        const [a, b] = e.touches;
+        const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+        const mx   = (a.clientX + b.clientX) / 2;
+        const my   = (a.clientY + b.clientY) / 2;
+        const r    = this.vp.getBoundingClientRect();
+        const cx   = mx - r.left, cy = my - r.top;
+        const factor = pinchDist > 0 ? dist / pinchDist : 1;
+        const ns = this._clamp(this.scale * factor);
+        this.x = cx - (cx - this.x) * (ns / this.scale) + (mx - pinchMx);
+        this.y = cy - (cy - this.y) * (ns / this.scale) + (my - pinchMy);
+        this.scale = ns;
+        pinchDist = dist; pinchMx = mx; pinchMy = my;
+        this._commit();
+      }
+    }, { passive: false });
+
+    vp.addEventListener('touchend', () => { touchPan = false; pinchDist = 0; });
+  }
+
+  // Animate canvas so that point (canvasX, canvasY) appears at viewport centre
+  goto(canvasX, canvasY, targetScale, animated = true) {
+    this.scale = this._clamp(targetScale);
+    this.x = this.vp.clientWidth  / 2 - canvasX * this.scale;
+    this.y = this.vp.clientHeight / 2 - canvasY * this.scale;
+    this._commit(animated);
+  }
+
+  // Fit a canvas rectangle into the viewport
+  fitRect(rx, ry, rw, rh, pad = 40, animated = false) {
+    const vw = this.vp.clientWidth, vh = this.vp.clientHeight;
+    const s  = this._clamp(Math.min((vw - pad * 2) / rw, (vh - pad * 2) / rh));
+    this.goto(rx + rw / 2, ry + rh / 2, s, animated);
+  }
+
+  // Fit server section on load
+  fitServer(animated = false) {
+    const vw = this.vp.clientWidth;
+    // On narrow screens start at 0.72 showing ~2 tiles; on wide screens fit all
+    const s = vw >= 900
+      ? this._clamp(Math.min(1.15, (vw - 40) / CANVAS_W))
+      : 0.72;
+    this.goto(CANVAS_W / 2, SERVER_H / 2, s, animated);
+  }
+
+  _initView() {
+    // Defer until layout is painted
+    requestAnimationFrame(() => this.fitServer(false));
+  }
+}
+
 // ── Panel toggle ──────────────────────────────────────────────────────────────
 let activePanel = 'server';
 
 function switchPanel(name) {
   activePanel = name;
-  document.getElementById('panel-server').style.display   = name === 'server'   ? 'grid' : 'none';
-  document.getElementById('panel-services').style.display = name === 'services' ? 'flex' : 'none';
   document.querySelectorAll('.pt-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.panel === name)
   );
-  // When switching to services, re-subscribe to active service logs
+  const isServer = name === 'server';
+  document.getElementById('viewport').style.display        = isServer ? 'block'  : 'none';
+  document.getElementById('panel-services').style.display  = isServer ? 'none'   : 'flex';
+  document.getElementById('server-controls').style.display = isServer ? 'contents' : 'none';
   if (name === 'services' && selectedService) {
     ws?.send(JSON.stringify({ type: 'subscribe_logs', container: selectedService }));
   }
@@ -289,11 +442,7 @@ function initGpuCards(count) {
   if (gpuCardsReady) return;
   gpuCardsReady = true;
 
-  const row = document.getElementById('row-metrics');
-  const ramCard = document.getElementById('ram-card');
-  // CPU + GPU(combined, wider) + RAM
-  row.style.gridTemplateColumns = `1fr 1.6fr 1fr`;
-
+  const tile = document.getElementById('tile-gpu');
   const card = document.createElement('div');
   card.className = 'card';
 
@@ -320,13 +469,12 @@ function initGpuCards(count) {
     </div>`).join('');
 
   card.innerHTML = `<div class="card-title">GPU</div>${sections}`;
-  row.insertBefore(card, ramCard);
+  tile.appendChild(card);
 
   for (let i = 0; i < count; i++) {
     gpuCharts[i]  = makeSparkline(`gpu-chart-${i}`,  GPU_COLORS[i % GPU_COLORS.length], GPU_BG[i % GPU_BG.length]);
     vramCharts[i] = makeSparkline(`vram-chart-${i}`, '#f59e0b', 'rgba(245,158,11,0.10)');
   }
-  // Populate GPU charts from existing history buffer
   if (historyBuffer.length > 0) rebuildCharts();
 }
 
@@ -725,6 +873,12 @@ function wsConnect() {
 }
 
 wsConnect();
+
+// ── PanZoom init ──────────────────────────────────────────────────────────────
+const panzoom = new PanZoom(
+  document.getElementById('viewport'),
+  document.getElementById('canvas')
+);
 
 // ── Panel toggle wiring ───────────────────────────────────────────────────────
 document.getElementById('pt-server')  ?.addEventListener('click', () => switchPanel('server'));

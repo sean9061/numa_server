@@ -2,41 +2,33 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Numa Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:       #060c18;
-      --surface:  #0c1526;
-      --surface2: #111e33;
-      --border:   #1a2d4a;
-      --text:     #e2e8f0;
-      --dim:      #4e6282;
-      --blue:     #3b82f6;
+      --bg:       #111111;
+      --surface:  #1c1c1c;
+      --surface2: #252525;
+      --border:   #2e2e2e;
+      --text:     #e0e0e0;
+      --dim:      #666666;
+      --blue:     #4a9eff;
       --green:    #22c55e;
       --amber:    #f59e0b;
       --red:      #ef4444;
-      --purple:   #818cf8;
+      --purple:   #9b8ffc;
       --gap:      6px;
     }
 
     html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
       font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 13px; }
 
-    #root {
-      display: grid;
-      grid-template-rows: 48px 1fr;
-      height: 100vh;
-      padding: var(--gap);
-      gap: var(--gap);
-      overflow: hidden;
-    }
-
-    /* ── Header ── */
+    /* ── Header (fixed) ── */
     #header {
+      position: fixed; top: 6px; left: 6px; right: 6px; height: 48px; z-index: 100;
       display: flex; align-items: center;
       padding: 0 12px;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
@@ -76,26 +68,78 @@
     .pt-btn.active { background: var(--surface2); border-color: var(--blue); color: var(--blue); }
     .pt-btn:not(.active):hover { border-color: var(--dim); color: var(--text); }
 
-    /* ── Panel wrapper: the 1fr content row ── */
-    #panel-wrap {
-      min-height: 0;
+    /* Fit-all button */
+    .btn-fit {
+      padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+      background: transparent; color: var(--dim); font-size: 12px; cursor: pointer;
+      transition: color 0.15s, border-color 0.15s; line-height: 1;
+    }
+    .btn-fit:hover { color: var(--text); border-color: var(--dim); }
+
+    /* ── Shared content area ── */
+    #content {
+      position: fixed;
+      top: 60px; left: 0; right: 0; bottom: 0;
+    }
+
+    /* ── Canvas viewport (server panel) ── */
+    #viewport {
+      position: absolute; inset: 0;
       overflow: hidden;
+      background: var(--bg);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #viewport.is-dragging { cursor: grabbing; }
+
+    /* ── Services panel ── */
+    #panel-services {
+      position: absolute; inset: 0;
+      display: none;
+      flex-direction: column;
+      padding: 6px;
+      gap: 6px;
+      overflow: hidden;
+      background: var(--bg);
     }
 
-    /* ── Panels: fill wrapper exactly ── */
-    #panel-server, #panel-services {
-      height: 100%;
-      min-height: 0;
-      gap: var(--gap);
+    /* Subtle dot-grid background */
+    #viewport::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: radial-gradient(circle, #2e2e2e 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
     }
-    #panel-server   { display: grid; grid-template-rows: 1fr 1fr; }
 
-    /* ── Row layouts: min-height:0 lets them shrink to their 1fr track ── */
-    #row-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); min-height: 0; }
-    #row-charts  { display: grid; grid-template-columns: 1.5fr 0.9fr 0.65fr 1.2fr; gap: var(--gap); min-height: 0; }
+    /* ── Infinite canvas ── */
+    #canvas {
+      position: absolute;
+      top: 0; left: 0;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+
+    /* ── Tile: absolutely-positioned slot on canvas ── */
+    .tile { position: absolute; }
+
+    /* ── Section separator label ── */
+    .section-divider {
+      position: absolute;
+      display: flex; align-items: center; gap: 12px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--dim);
+    }
+    .section-divider::after {
+      content: '';
+      height: 1px; background: var(--border); flex: 1; min-width: 60px;
+    }
 
     /* ── Card base ── */
     .card {
+      width: 100%; height: 100%;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
       padding: 10px 12px; display: flex; flex-direction: column; overflow: hidden;
     }
@@ -210,26 +254,6 @@
     .load-val   { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .load-divider { height: 1px; background: var(--border); margin: 2px 0; }
 
-    /* ── Web requests card ── */
-    .web-chart-wrap { flex: 1; min-height: 0; position: relative; margin-top: 6px; }
-    .web-stats { display: flex; gap: 14px; flex-shrink: 0; margin-top: 4px; }
-    .web-stat { font-size: 10px; }
-    .web-stat-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .web-stat-label { color: var(--dim); }
-
-    /* ── Logs card ── */
-    .log-tabs { display: flex; gap: 4px; margin-top: 7px; flex-shrink: 0; flex-wrap: wrap; }
-    .log-tab { padding: 3px 9px; border-radius: 5px; font-size: 11px; font-weight: 500;
-      cursor: pointer; background: transparent; border: 1px solid var(--border); color: var(--dim);
-      transition: all 0.15s; }
-    .log-tab.active { background: var(--blue); border-color: var(--blue); color: #fff; }
-    .log-tab:not(.active):hover { border-color: var(--blue); color: var(--text); }
-    .log-view { flex: 1; min-height: 0; overflow-y: auto; margin-top: 5px;
-      font-family: 'JetBrains Mono','Fira Code',monospace; font-size: 11px; line-height: 1.5;
-      background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px; }
-    .log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
-    .log-line.err { color: #f87171; }
-
     /* ── State badge (shared) ── */
     .svc-state-badge {
       font-size: 9px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
@@ -240,7 +264,7 @@
     .svc-state-badge.paused  { background: rgba(245,158,11,0.15); color: var(--amber); }
     .svc-state-badge.other   { background: rgba(78,98,130,0.15);  color: var(--dim); }
 
-    /* ── Open link button (shared) ── */
+    /* ── Open link button ── */
     .svc-link-btn {
       display: inline-flex; align-items: center; gap: 3px;
       padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 600;
@@ -250,11 +274,9 @@
     }
     .svc-link-btn:hover { background: rgba(59,130,246,0.22); border-color: var(--blue); }
 
-    /* ── Services panel — grid layout ── */
-    #panel-services { display: none; flex-direction: column; }
-
     .svc-grid {
-      flex: 1; min-height: 0; overflow-y: auto;
+      flex: 1; min-height: 0;
+      overflow-y: auto;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
       gap: var(--gap);
@@ -267,7 +289,7 @@
       padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
       transition: border-color 0.15s;
     }
-    .svc2-card:hover { border-color: rgba(59,130,246,0.35); }
+    .svc2-card:hover { border-color: rgba(74,158,255,0.35); }
     .svc2-card .status-dot { width: 9px; height: 9px; }
     .svc2-card .svc-state-badge { font-size: 10px; padding: 3px 8px; }
 
@@ -281,7 +303,6 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
-    /* Resource bars */
     .svc2-bars { display: flex; flex-direction: column; gap: 9px; }
     .svc2-bar-row { display: flex; align-items: center; gap: 10px; }
     .svc2-bar-label { font-size: 10px; color: var(--dim); width: 34px; flex-shrink: 0; }
@@ -297,7 +318,6 @@
     }
     .svc2-disk-io span { color: var(--text); font-weight: 500; }
 
-    /* Portfolio web stats section */
     .svc2-web-stats {
       display: flex; align-items: center; gap: 12px;
       background: var(--surface2); border: 1px solid var(--border);
@@ -308,7 +328,6 @@
     .svc2-web-label { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.05em; }
     .svc2-web-sep  { width: 1px; height: 28px; background: var(--border); }
 
-    /* Action bar */
     .svc2-actions { display: flex; align-items: center; gap: 6px; }
     .svc2-spacer  { flex: 1; }
 
@@ -329,12 +348,13 @@
       border: 1px solid var(--border); color: var(--dim); transition: all 0.15s;
     }
     .svc2-log-btn:hover, .svc2-log-btn.active {
-      background: rgba(59,130,246,0.10); border-color: rgba(59,130,246,0.4); color: var(--blue);
+      background: rgba(74,158,255,0.10); border-color: rgba(74,158,255,0.4); color: var(--blue);
     }
 
-    /* ── Log drawer ── */
-    .svc-log-drawer {
-      flex-shrink: 0; height: 185px;
+    /* ── Log drawer (flex child inside services panel) ── */
+    #svc-log-drawer {
+      height: 185px;
+      flex-shrink: 0;
       background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
       flex-direction: column; overflow: hidden;
     }
@@ -351,21 +371,24 @@
       font-size: 15px; line-height: 1; padding: 0 2px; transition: color 0.15s;
     }
     .svc-log-close:hover { color: var(--red); }
-    .svc-log-drawer .log-view {
-      flex: 1; min-height: 0; border: none; border-radius: 0; background: transparent; margin: 0;
+    .log-view {
+      flex: 1; min-height: 0; overflow-y: auto;
+      font-family: 'JetBrains Mono','Fira Code',monospace; font-size: 11px; line-height: 1.5;
+      background: var(--bg); padding: 7px 9px;
+      touch-action: pan-y;
     }
+    .log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
+    .log-line.err { color: #f87171; }
 
-    /* Scrollbar */
+    /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    /* Utility */
+    /* ── Utility ── */
     .color-ok   { color: var(--green); }
     .color-warn { color: var(--amber); }
     .color-crit { color: var(--red); }
-
-    /* Status dot */
     .status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
     .status-running { background: var(--green); box-shadow: 0 0 5px var(--green); }
     .status-exited  { background: var(--red); }
@@ -374,9 +397,8 @@
   </style>
 </head>
 <body>
-<div id="root">
 
-  <!-- Header -->
+  <!-- Fixed header -->
   <div id="header">
     <div class="header-brand">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -386,13 +408,11 @@
     </div>
     <div class="header-sep"></div>
     <div class="panel-toggle">
-      <!-- Server Monitor -->
       <button class="pt-btn active" id="pt-server" data-panel="server" title="Server Monitor">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
         </svg>
       </button>
-      <!-- Services -->
       <button class="pt-btn" id="pt-services" data-panel="services" title="Services">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="9" height="9" rx="1"/><rect x="13" y="3" width="9" height="9" rx="1"/>
@@ -416,191 +436,197 @@
       <span class="ws-label" id="ws-label">Connecting</span>
     </div>
     <div class="header-spacer"></div>
-    <div class="time-range" id="time-range-controls">
-      <button class="tr-btn active" data-pts="60"   onclick="setTimeWindow(60)">2m</button>
-      <button class="tr-btn"        data-pts="300"  onclick="setTimeWindow(300)">10m</button>
-      <button class="tr-btn"        data-pts="900"  onclick="setTimeWindow(900)">30m</button>
-      <button class="tr-btn"        data-pts="1800" onclick="setTimeWindow(1800)">1h</button>
+    <div id="server-controls" style="display:contents">
+      <div class="time-range" id="time-range-controls">
+        <button class="tr-btn active" data-pts="60"   onclick="setTimeWindow(60)">2m</button>
+        <button class="tr-btn"        data-pts="300"  onclick="setTimeWindow(300)">10m</button>
+        <button class="tr-btn"        data-pts="900"  onclick="setTimeWindow(900)">30m</button>
+        <button class="tr-btn"        data-pts="1800" onclick="setTimeWindow(1800)">1h</button>
+      </div>
+      <div class="header-sep"></div>
+      <button class="btn-fit" onclick="panzoom.fitServer()" title="全体表示">⊡</button>
+      <div class="header-sep"></div>
     </div>
-    <div class="header-sep"></div>
     <div id="clock">—</div>
     <div class="header-sep"></div>
     <button class="btn-logout" onclick="logout()">Logout</button>
   </div>
 
-  <!-- Panel wrapper (fills the 1fr content row) -->
-  <div id="panel-wrap">
+  <!-- Content area (server canvas + services panel) -->
+  <div id="content">
 
-  <!-- Panel: Server Monitor -->
-  <div id="panel-server">
+  <!-- Canvas viewport (server panel) -->
+  <div id="viewport">
+    <div id="canvas">
 
-    <!-- Row 1: CPU / GPU / RAM -->
-    <div id="row-metrics">
+      <!-- ── Row 1: CPU | GPU | RAM | Load ── -->
 
-      <!-- CPU -->
-      <div class="card">
-        <div class="card-title">CPU</div>
-        <div class="metric-body">
-          <div class="metric-gauge">
-            <svg class="gauge-svg" viewBox="0 0 160 100">
-              <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
-              <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="cpu-gauge" stroke="var(--blue)" stroke-dasharray="0 204.2"/>
-            </svg>
-            <div class="gauge-center-text">
-              <div class="gauge-pct" id="cpu-pct">—</div>
-              <div class="gauge-sub">USAGE</div>
+      <!-- CPU tile: left=0, top=0, w=310, h=260 -->
+      <div class="tile" style="left:0;top:0;width:310px;height:260px">
+        <div class="card">
+          <div class="card-title">CPU</div>
+          <div class="metric-body">
+            <div class="metric-gauge">
+              <svg class="gauge-svg" viewBox="0 0 160 100">
+                <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
+                <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="cpu-gauge" stroke="var(--blue)" stroke-dasharray="0 204.2"/>
+              </svg>
+              <div class="gauge-center-text">
+                <div class="gauge-pct" id="cpu-pct">—</div>
+                <div class="gauge-sub">USAGE</div>
+              </div>
+            </div>
+            <div class="metric-chart"><canvas id="cpu-chart"></canvas></div>
+          </div>
+          <div class="core-grid" id="cpu-cores"></div>
+          <div class="metric-meta">
+            <div class="meta-pill">🌡 <span id="cpu-temp">—</span></div>
+            <div class="meta-pill">⚡ <span id="cpu-pow">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GPU tile: left=322, top=0, w=388, h=260 (populated by JS) -->
+      <div class="tile" id="tile-gpu" style="left:322px;top:0;width:388px;height:260px"></div>
+
+      <!-- RAM tile: left=722, top=0, w=310, h=260 -->
+      <div class="tile" style="left:722px;top:0;width:310px;height:260px">
+        <div class="card" id="ram-card">
+          <div class="card-title">RAM</div>
+          <div class="metric-body">
+            <div class="metric-gauge">
+              <svg class="gauge-svg" viewBox="0 0 160 100">
+                <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
+                <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="ram-gauge" stroke="var(--green)" stroke-dasharray="0 204.2"/>
+              </svg>
+              <div class="gauge-center-text">
+                <div class="gauge-pct" id="ram-pct">—</div>
+                <div class="gauge-sub">USED</div>
+              </div>
+            </div>
+            <div class="metric-chart"><canvas id="ram-chart"></canvas></div>
+          </div>
+          <div class="metric-meta">
+            <div class="meta-pill">Used <span id="ram-used">—</span></div>
+            <div class="meta-pill">Cache <span id="ram-cached">—</span></div>
+            <div class="meta-pill">Swap <span id="ram-swap">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Load tile: left=1044, top=0, w=224, h=260 -->
+      <div class="tile" style="left:1044px;top:0;width:224px;height:260px">
+        <div class="card">
+          <div class="card-title">LOAD AVG</div>
+          <div class="load-grid">
+            <div class="load-row">
+              <span class="load-label">1 min</span>
+              <span class="load-val" id="load-1">—</span>
+            </div>
+            <div class="load-row">
+              <span class="load-label">5 min</span>
+              <span class="load-val" id="load-5">—</span>
+            </div>
+            <div class="load-row">
+              <span class="load-label">15 min</span>
+              <span class="load-val" id="load-15">—</span>
+            </div>
+            <div class="load-divider"></div>
+            <div class="load-row">
+              <span class="load-label">Processes</span>
+              <span class="load-val" style="font-size:13px" id="proc-count">—</span>
             </div>
           </div>
-          <div class="metric-chart"><canvas id="cpu-chart"></canvas></div>
-        </div>
-        <div class="core-grid" id="cpu-cores"></div>
-        <div class="metric-meta">
-          <div class="meta-pill">🌡 <span id="cpu-temp">—</span></div>
-          <div class="meta-pill">⚡ <span id="cpu-pow">—</span></div>
         </div>
       </div>
 
-      <!-- GPU cards injected dynamically by app.js -->
+      <!-- ── Row 2: Network | Disk | Power ── -->
 
-      <!-- RAM -->
-      <div class="card" id="ram-card">
-        <div class="card-title">RAM</div>
-        <div class="metric-body">
-          <div class="metric-gauge">
-            <svg class="gauge-svg" viewBox="0 0 160 100">
-              <path class="gauge-track"     d="M 15 88 A 65 65 0 0 1 145 88"/>
-              <path class="gauge-indicator" d="M 15 88 A 65 65 0 0 1 145 88" id="ram-gauge" stroke="var(--green)" stroke-dasharray="0 204.2"/>
-            </svg>
-            <div class="gauge-center-text">
-              <div class="gauge-pct" id="ram-pct">—</div>
-              <div class="gauge-sub">USED</div>
+      <!-- Network tile: left=0, top=272, w=460, h=280 -->
+      <div class="tile" style="left:0;top:272px;width:460px;height:280px">
+        <div class="card">
+          <div class="card-title">NETWORK &mdash; <span id="net-iface" style="text-transform:none;font-weight:400;color:var(--text)">—</span></div>
+          <div class="net-chart-wrap"><canvas id="net-chart"></canvas></div>
+          <div class="net-stats">
+            <div class="net-stat">
+              <span class="dot dot-rx"></span>
+              <span class="net-val" style="color:var(--blue)" id="rx-val">—</span>
+              <span class="net-label">↓ RX</span>
+            </div>
+            <div class="net-stat">
+              <span class="dot dot-tx"></span>
+              <span class="net-val" style="color:var(--purple)" id="tx-val">—</span>
+              <span class="net-label">↑ TX</span>
             </div>
           </div>
-          <div class="metric-chart"><canvas id="ram-chart"></canvas></div>
-        </div>
-        <div class="metric-meta">
-          <div class="meta-pill">Used <span id="ram-used">—</span></div>
-          <div class="meta-pill">Cache <span id="ram-cached">—</span></div>
-          <div class="meta-pill">Swap <span id="ram-swap">—</span></div>
         </div>
       </div>
 
-    </div>
-
-    <!-- Row 2: Network / Disk / Load / Web Requests -->
-    <div id="row-charts">
-
-      <!-- Network -->
-      <div class="card">
-        <div class="card-title">NETWORK &mdash; <span id="net-iface" style="text-transform:none;font-weight:400;color:var(--text)">—</span></div>
-        <div class="net-chart-wrap"><canvas id="net-chart"></canvas></div>
-        <div class="net-stats">
-          <div class="net-stat">
-            <span class="dot dot-rx"></span>
-            <span class="net-val" style="color:var(--blue)" id="rx-val">—</span>
-            <span class="net-label">↓ RX</span>
+      <!-- Disk tile: left=472, top=272, w=290, h=280 -->
+      <div class="tile" style="left:472px;top:272px;width:290px;height:280px">
+        <div class="card">
+          <div class="card-title">DISK</div>
+          <div class="disk-donut-wrap">
+            <canvas id="disk-chart"></canvas>
+            <div class="disk-donut-center">
+              <div class="disk-donut-pct" id="disk-pct-text">—</div>
+              <div class="disk-donut-sub">USED</div>
+            </div>
           </div>
-          <div class="net-stat">
-            <span class="dot dot-tx"></span>
-            <span class="net-val" style="color:var(--purple)" id="tx-val">—</span>
-            <span class="net-label">↑ TX</span>
+          <div class="disk-legend" id="disk-legend"></div>
+          <div class="disk-io-chart-wrap"><canvas id="disk-io-chart"></canvas></div>
+          <div class="disk-io">
+            <span class="disk-io-item"><span style="color:var(--blue)">↓</span> R <span id="disk-rx">—</span></span>
+            <span class="disk-io-item"><span style="color:var(--amber)">↑</span> W <span id="disk-wx">—</span></span>
           </div>
         </div>
       </div>
 
-      <!-- Disk -->
-      <div class="card">
-        <div class="card-title">DISK</div>
-        <div class="disk-donut-wrap">
-          <canvas id="disk-chart"></canvas>
-          <div class="disk-donut-center">
-            <div class="disk-donut-pct" id="disk-pct-text">—</div>
-            <div class="disk-donut-sub">USED</div>
-          </div>
-        </div>
-        <div class="disk-legend" id="disk-legend"></div>
-        <div class="disk-io-chart-wrap"><canvas id="disk-io-chart"></canvas></div>
-        <div class="disk-io">
-          <span class="disk-io-item"><span style="color:var(--blue)">↓</span> R <span id="disk-rx">—</span></span>
-          <span class="disk-io-item"><span style="color:var(--amber)">↑</span> W <span id="disk-wx">—</span></span>
-        </div>
-      </div>
-
-      <!-- Power -->
-      <div class="card">
-        <div class="card-title">POWER</div>
-        <div class="power-total" id="pow-total">—</div>
-        <div class="power-chart-wrap"><canvas id="power-chart"></canvas></div>
-        <div class="power-legend">
-          <div class="power-legend-item">
-            <span class="power-legend-dot" style="background:#3b82f6"></span>
-            <span class="power-legend-label">CPU</span>
-            <span class="power-legend-val" id="pow-cpu">—</span>
-          </div>
-          <div class="power-legend-item">
-            <span class="power-legend-dot" style="background:#f59e0b"></span>
-            <span class="power-legend-label">GPU</span>
-            <span class="power-legend-val" id="pow-gpu">—</span>
-          </div>
-          <div class="power-legend-item">
-            <span class="power-legend-dot" style="background:#818cf8"></span>
-            <span class="power-legend-label">DRAM</span>
-            <span class="power-legend-val" id="pow-dram">—</span>
+      <!-- Power tile: left=774, top=272, w=258, h=280 -->
+      <div class="tile" style="left:774px;top:272px;width:258px;height:280px">
+        <div class="card">
+          <div class="card-title">POWER</div>
+          <div class="power-total" id="pow-total">—</div>
+          <div class="power-chart-wrap"><canvas id="power-chart"></canvas></div>
+          <div class="power-legend">
+            <div class="power-legend-item">
+              <span class="power-legend-dot" style="background:#3b82f6"></span>
+              <span class="power-legend-label">CPU</span>
+              <span class="power-legend-val" id="pow-cpu">—</span>
+            </div>
+            <div class="power-legend-item">
+              <span class="power-legend-dot" style="background:#f59e0b"></span>
+              <span class="power-legend-label">GPU</span>
+              <span class="power-legend-val" id="pow-gpu">—</span>
+            </div>
+            <div class="power-legend-item">
+              <span class="power-legend-dot" style="background:#818cf8"></span>
+              <span class="power-legend-label">DRAM</span>
+              <span class="power-legend-val" id="pow-dram">—</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Load Average -->
-      <div class="card">
-        <div class="card-title">LOAD AVG</div>
-        <div class="load-grid">
-          <div class="load-row">
-            <span class="load-label">1 min</span>
-            <span class="load-val" id="load-1">—</span>
-          </div>
-          <div class="load-row">
-            <span class="load-label">5 min</span>
-            <span class="load-val" id="load-5">—</span>
-          </div>
-          <div class="load-row">
-            <span class="load-label">15 min</span>
-            <span class="load-val" id="load-15">—</span>
-          </div>
-          <div class="load-divider"></div>
-          <div class="load-row">
-            <span class="load-label">Processes</span>
-            <span class="load-val" style="font-size:13px" id="proc-count">—</span>
-          </div>
-        </div>
-      </div>
+    </div><!-- /#canvas -->
+  </div><!-- /#viewport -->
 
-
-    </div>
-
-  </div><!-- /panel-server -->
-
-  <!-- Panel: Services -->
+  <!-- Services panel (separate, not on canvas) -->
   <div id="panel-services">
-
-    <!-- Card grid -->
     <div class="svc-grid" id="svc-grid">
       <div style="color:var(--dim);font-size:12px;padding:8px">Loading...</div>
     </div>
-
-    <!-- Log drawer (hidden until a service's Logs button is clicked) -->
-    <div class="svc-log-drawer" id="svc-log-drawer" style="display:none">
+    <div id="svc-log-drawer" style="display:none">
       <div class="svc-log-drawer-hdr">
         <span class="svc-log-drawer-title" id="svc-log-drawer-title">LOGS</span>
         <button class="svc-log-close" onclick="closeLogs()">✕</button>
       </div>
       <div class="log-view" id="svc-log-view"></div>
     </div>
+  </div><!-- /#panel-services -->
 
-  </div><!-- /panel-services -->
+  </div><!-- /#content -->
 
-  </div><!-- /panel-wrap -->
-
-</div>
-<script src="/app.js?v=11"></script>
+<script src="/app.js?v=13"></script>
 </body>
 </html>
