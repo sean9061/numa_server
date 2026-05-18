@@ -3,24 +3,41 @@ import type { ContainerInfo, ContainerStats } from '../../types';
 import { fmtBytes, fmtBps, barColor } from '../../utils';
 import { SERVICE_LINKS } from '../../constants';
 
-const SVG_START   = <svg width="10" height="10" viewBox="0 0 10 10"><polygon points="2,1 9,5 2,9" fill="currentColor"/></svg>;
-const SVG_STOP    = <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" rx="1" fill="currentColor"/></svg>;
-const SVG_RESTART = (
+// ── Icons ────────────────────────────────────────────────────────────────────
+
+const IcoStart = () => (
+  <svg width="9" height="9" viewBox="0 0 9 9"><polygon points="1,0 9,4.5 1,9" fill="currentColor"/></svg>
+);
+const IcoStop = () => (
+  <svg width="9" height="9" viewBox="0 0 9 9"><rect x="0" y="0" width="9" height="9" rx="1.5" fill="currentColor"/></svg>
+);
+const IcoRestart = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/>
   </svg>
 );
-const SVG_LOGS = (
+const IcoLogs = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
     <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="15" y2="18"/>
   </svg>
 );
 
-function dotClass(state: string) {
-  return state === 'running' ? 'status-running' : state === 'exited' ? 'status-exited' : state === 'paused' ? 'status-paused' : 'status-other';
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function stateStyle(state: string): { bg: string; color: string } {
+  switch (state) {
+    case 'running': return { bg: 'rgba(34,197,94,0.12)',  color: 'var(--green)' };
+    case 'exited':  return { bg: 'rgba(239,68,68,0.12)',  color: 'var(--red)'   };
+    case 'paused':  return { bg: 'rgba(245,158,11,0.12)', color: 'var(--amber)' };
+    default:        return { bg: 'rgba(102,102,102,0.12)', color: 'var(--dim)'  };
+  }
 }
-function badgeClass(state: string) {
-  return state === 'running' ? 'running' : state === 'exited' ? 'exited' : state === 'paused' ? 'paused' : 'other';
+
+function dotBg(state: string) {
+  if (state === 'running') return 'var(--green)';
+  if (state === 'exited')  return 'var(--red)';
+  if (state === 'paused')  return 'var(--amber)';
+  return 'var(--dim)';
 }
 
 async function svcControl(name: string, action: string) {
@@ -32,6 +49,8 @@ async function svcControl(name: string, action: string) {
   }
 }
 
+// ── Component ────────────────────────────────────────────────────────────────
+
 interface Props {
   container: ContainerInfo;
   stats?: ContainerStats;
@@ -40,22 +59,23 @@ interface Props {
 }
 
 export function ServiceCard({ container: c, stats, portfolioRpm, portfolioTotal }: Props) {
-  const selectedService = useStore(s => s.selectedService);
+  const selectedService    = useStore(s => s.selectedService);
   const setSelectedService = useStore(s => s.setSelectedService);
-  const clearLogs = useStore(s => s.clearLogs);
+  const clearLogs          = useStore(s => s.clearLogs);
 
   const isRunning   = c.state === 'running';
   const isPortfolio = c.name === 'portfolio-container';
   const link        = SERVICE_LINKS[c.name];
   const logActive   = selectedService === c.name;
+  const ss          = stateStyle(c.state);
 
   const cpuPct = stats?.cpu ?? 0;
   const memPct = stats?.mem_percent ?? 0;
-  const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%`  : '—';
-  const memVal = stats?.mem_used != null ? fmtBytes(stats.mem_used)    : '—';
+  const cpuVal = stats?.cpu      != null ? `${stats.cpu.toFixed(1)}%` : '—';
+  const memVal = stats?.mem_used != null ? fmtBytes(stats.mem_used)   : '—';
   const memTot = stats?.mem_total != null ? ` / ${fmtBytes(stats.mem_total)}` : '';
-  const diskR  = stats?.disk_r_sec != null ? fmtBps(stats.disk_r_sec)  : '—';
-  const diskW  = stats?.disk_w_sec != null ? fmtBps(stats.disk_w_sec)  : '—';
+  const diskR  = stats?.disk_r_sec != null ? fmtBps(stats.disk_r_sec) : '—';
+  const diskW  = stats?.disk_w_sec != null ? fmtBps(stats.disk_w_sec) : '—';
 
   function toggleLogs() {
     if (logActive) {
@@ -69,95 +89,95 @@ export function ServiceCard({ container: c, stats, portfolioRpm, portfolioTotal 
     }
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--surface)',
-    border: `1px solid var(--border)`,
-    borderRadius: 10,
-    padding: '18px 20px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
-  };
-
-  const btnBase: React.CSSProperties = {
-    width: 34, height: 30, padding: 0,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 6, cursor: 'pointer',
-    background: 'transparent', border: '1px solid var(--border)', color: 'var(--dim)',
-  };
-
   return (
-    <div style={cardStyle}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span className={`status-dot ${dotClass(c.state)}`} style={{ width: 9, height: 9 }} />
-        <span style={{ fontSize: 15, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {c.name}
-        </span>
-        <span className={`svc-state-badge ${badgeClass(c.state)}`} style={{ fontSize: 10, padding: '3px 8px' }}>
-          {c.state}
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* ── Header ── */}
+      <div style={{ padding: '16px 18px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          {/* Running dot */}
+          <span style={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block',
+            background: dotBg(c.state),
+            boxShadow: isRunning ? `0 0 6px ${dotBg(c.state)}` : 'none',
+          }} />
+          {/* Name */}
+          <span style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>
+            {c.name}
+          </span>
+          {/* State badge */}
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+            padding: '2px 8px', borderRadius: 5, flexShrink: 0,
+            background: ss.bg, color: ss.color,
+          }}>
+            {c.state}
+          </span>
+        </div>
+        {/* Meta */}
+        <span style={{ fontSize: 10, color: 'var(--dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: 17 }}>
+          {c.image} · {c.status}
         </span>
       </div>
 
-      {/* Meta */}
-      <div style={{ fontSize: 11, color: 'var(--dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {c.image} · {c.status}
-      </div>
+      {/* ── Separator ── */}
+      <div style={{ height: 1, background: 'var(--border)', marginInline: 18 }} />
 
-      {/* Bars */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-        <BarRow label="CPU"  pct={cpuPct}  val={cpuVal}            color={barColor(cpuPct)} />
-        <BarRow label="MEM"  pct={memPct}  val={`${memVal}${memTot}`} color={barColor(memPct, 'var(--green)')} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 10, color: 'var(--dim)', width: 34, flexShrink: 0 }}>DISK</span>
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: 'var(--dim)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-            ↓ <span style={{ color: 'var(--text)', fontWeight: 500 }}>{diskR}</span>
-            &ensp;↑ <span style={{ color: 'var(--text)', fontWeight: 500 }}>{diskW}</span>
+      {/* ── Metrics ── */}
+      <div style={{ padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <MetricRow label="CPU"  pct={cpuPct}  color={barColor(cpuPct)}>
+          <strong style={{ color: cpuPct >= 65 ? barColor(cpuPct) : 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{cpuVal}</strong>
+        </MetricRow>
+        <MetricRow label="MEM"  pct={memPct}  color={barColor(memPct, 'var(--green)')}>
+          <span style={{ color: 'var(--text)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{memVal}</span>
+          <span style={{ color: 'var(--dim)' }}>{memTot}</span>
+        </MetricRow>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, color: 'var(--dim)', width: 36, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Disk</span>
+          <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ color: 'var(--blue)' }}>↓</span>&nbsp;
+            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{diskR}</span>
+            &emsp;
+            <span style={{ color: 'var(--amber)' }}>↑</span>&nbsp;
+            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{diskW}</span>
           </span>
         </div>
       </div>
 
-      {/* Portfolio web stats */}
+      {/* ── Portfolio web stats ── */}
       {isPortfolio && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 7, padding: '8px 14px' }}>
-          <WebStat val={portfolioRpm ?? '—'} label="req/min" />
-          <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-          <WebStat val={portfolioTotal ?? '—'} label="total (1hr)" />
-        </div>
+        <>
+          <div style={{ height: 1, background: 'var(--border)', marginInline: 18 }} />
+          <div style={{ padding: '12px 18px', display: 'flex', gap: 24, alignItems: 'baseline' }}>
+            <WebNum value={portfolioRpm ?? '—'} label="req / min" />
+            <WebNum value={portfolioTotal ?? '—'} label="total (1 hr)" />
+          </div>
+        </>
       )}
 
-      {/* Actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <button style={btnBase} title="Start"   disabled={isRunning}  onClick={() => svcControl(c.name, 'start')}>{SVG_START}</button>
-        <button style={btnBase} title="Stop"    disabled={!isRunning} onClick={() => svcControl(c.name, 'stop')}>{SVG_STOP}</button>
-        <button style={btnBase} title="Restart" disabled={!isRunning} onClick={() => svcControl(c.name, 'restart')}>{SVG_RESTART}</button>
+      {/* ── Actions ── */}
+      <div style={{ height: 1, background: 'var(--border)', marginInline: 18 }} />
+      <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <IconBtn title="Start"   disabled={isRunning}  onClick={() => svcControl(c.name, 'start')}><IcoStart /></IconBtn>
+        <IconBtn title="Stop"    disabled={!isRunning} onClick={() => svcControl(c.name, 'stop')}><IcoStop /></IconBtn>
+        <IconBtn title="Restart" disabled={!isRunning} onClick={() => svcControl(c.name, 'restart')}><IcoRestart /></IconBtn>
         <div style={{ flex: 1 }} />
-        <button
-          onClick={toggleLogs}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4,
-            padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-            cursor: 'pointer', background: logActive ? 'rgba(74,158,255,0.10)' : 'transparent',
-            border: logActive ? '1px solid rgba(74,158,255,0.4)' : '1px solid var(--border)',
-            color: logActive ? 'var(--blue)' : 'var(--dim)',
-          }}
-        >
-          {SVG_LOGS} Logs
-        </button>
+        <TextBtn active={logActive} onClick={toggleLogs}><IcoLogs /> Logs</TextBtn>
         {link && (
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              padding: '3px 8px', borderRadius: 5, fontSize: 10, fontWeight: 600,
-              textDecoration: 'none',
-              background: 'rgba(59,130,246,0.10)', border: '1px solid rgba(59,130,246,0.3)',
-              color: 'var(--blue)',
-            }}
-          >
+          <a href={link} target="_blank" rel="noopener" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+            textDecoration: 'none',
+            background: 'rgba(74,158,255,0.08)',
+            border: '1px solid rgba(74,158,255,0.25)',
+            color: 'var(--blue)',
+          }}>
             ↗ Open
           </a>
         )}
@@ -166,25 +186,76 @@ export function ServiceCard({ container: c, stats, portfolioRpm, portfolioTotal 
   );
 }
 
-function BarRow({ label, pct, val, color }: { label: string; pct: number; val: string; color: string }) {
+// ── Sub-components ───────────────────────────────────────────────────────────
+
+function MetricRow({ label, pct, color, children }: {
+  label: string; pct: number; color: string; children: React.ReactNode;
+}) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ fontSize: 10, color: 'var(--dim)', width: 34, flexShrink: 0 }}>{label}</span>
-      <div style={{ flex: 1, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
-        <div className="svc2-bar-fill" style={{ height: '100%', borderRadius: 3, width: `${Math.min(100, pct)}%`, background: color }} />
-      </div>
-      <span style={{ fontSize: 11, color: 'var(--dim)', width: 110, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {val}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ fontSize: 10, color: 'var(--dim)', width: 36, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        {label}
       </span>
+      <div style={{ flex: 1, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+        <div className="svc2-bar-fill" style={{ height: '100%', width: `${Math.min(100, pct)}%`, background: color, borderRadius: 2 }} />
+      </div>
+      <div style={{ fontSize: 11, flexShrink: 0, minWidth: 0, textAlign: 'right', whiteSpace: 'nowrap' }}>
+        {children}
+      </div>
     </div>
   );
 }
 
-function WebStat({ val, label }: { val: number | string; label: string }) {
+function WebNum({ value, label }: { value: number | string; label: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-      <span style={{ fontSize: 18, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--green)' }}>{val}</span>
-      <span style={{ fontSize: 9, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <span style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--green)', lineHeight: 1 }}>
+        {value}
+      </span>
+      <span style={{ fontSize: 10, color: 'var(--dim)' }}>{label}</span>
     </div>
+  );
+}
+
+function IconBtn({ children, disabled, onClick, title }: {
+  children: React.ReactNode; disabled?: boolean; onClick: () => void; title?: string;
+}) {
+  return (
+    <button
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        width: 30, height: 28, padding: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6, cursor: disabled ? 'default' : 'pointer',
+        background: 'transparent',
+        border: '1px solid var(--border)',
+        color: 'var(--dim)',
+        opacity: disabled ? 0.28 : 1,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TextBtn({ children, active, onClick }: {
+  children: React.ReactNode; active?: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+        cursor: 'pointer',
+        background: active ? 'rgba(74,158,255,0.10)' : 'transparent',
+        border: active ? '1px solid rgba(74,158,255,0.35)' : '1px solid var(--border)',
+        color: active ? 'var(--blue)' : 'var(--dim)',
+      }}
+    >
+      {children}
+    </button>
   );
 }
