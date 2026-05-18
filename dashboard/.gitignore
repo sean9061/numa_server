@@ -3,3 +3,5 @@ node_modules/
 compose.override.yaml
 compose.dev.yaml
 data/
+frontend/node_modules/
+frontend/dist/

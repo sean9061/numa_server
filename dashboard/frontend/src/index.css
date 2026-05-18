@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #111111;
+  --surface:  #1c1c1c;
+  --surface2: #252525;
+  --border:   #2e2e2e;
+  --text:     #e0e0e0;
+  --dim:      #666666;
+  --blue:     #4a9eff;
+  --green:    #22c55e;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --purple:   #9b8ffc;
+  --gap:      6px;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── Utility ── */
+.color-ok   { color: var(--green); }
+.color-warn { color: var(--amber); }
+.color-crit { color: var(--red); }
+
+/* ── Status dot ── */
+.status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.status-running { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.status-exited  { background: var(--red); }
+.status-paused  { background: var(--amber); }
+.status-other   { background: var(--dim); }
+
+/* ── Canvas viewport ── */
+.canvas-viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.canvas-viewport.is-dragging { cursor: grabbing; }
+
+.canvas-layer {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ── Dot grid ── */
+.canvas-bg {
+  position: absolute;
+  left: -4000px; top: -4000px;
+  width: 12000px; height: 12000px;
+  background-image: radial-gradient(circle, #2a2a2a 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Tile ── */
+.tile {
+  position: absolute;
+  z-index: 1;
+}
+
+/* ── Card ── */
+.card {
+  width: 100%;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+
+/* ── Gauge ── */
+.gauge-track     { fill: none; stroke: var(--border); stroke-width: 10; stroke-linecap: round; }
+.gauge-indicator { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 0.5s ease, stroke 0.3s; }
+.gauge-svg { width: 100%; display: block; overflow: visible; }
+
+/* ── Core bars ── */
+.core-fill { transition: width 0.4s ease, background 0.3s; }
+
+/* ── Service card bar ── */
+.svc2-bar-fill { transition: width 0.4s ease, background 0.3s; }
+
+/* ── Log drawer ── */
+.log-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--bg);
+  padding: 7px 9px;
+  touch-action: pan-y;
+}
+.log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
+.log-line.err { color: #f87171; }
+
+/* ── Recharts customization ── */
+.recharts-surface { overflow: visible; }

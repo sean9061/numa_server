@@ -48,7 +48,9 @@ numa_server/
 - ドメイン: `s3an.dev`
 
 ### `dashboard/` — サーバー監視ダッシュボード
-- Node.js (Express + WebSocket) + vanilla JS フロントエンド
+- **バックエンド:** Node.js (Express + WebSocket) — `dashboard/src/`
+- **フロントエンド:** Vite + React + TypeScript — `dashboard/frontend/src/`
+  - Recharts (チャート)、Zustand (状態管理)、Tailwind CSS v4
 - `proxy_net` のみ接続、ホストポート非公開
 - **2パネル構成:**
   - **SERVER:** CPU / GPU / RAM / Network / Disk（ドーナツ内訳 + I/Oラインチャート）/ Load / Power（CPU+GPU+DRAM合計・内訳）
@@ -60,8 +62,14 @@ numa_server/
   - `PORTFOLIO_LOG`: NPMログファイル名の一部（例: `proxy-host-2`）を指定してポートフォリオのアクセスログのみ集計。未設定時は全NPMアクセスログを合算
 - コンテナ操作API: `POST /api/containers/:name/{start,stop,restart}`（認証済みのみ）
 - **コード変更後は要リビルド:** `docker compose build && docker compose up -d`
-- フロント変更時は `public/index.html` の `app.js?v=N` の `N` をインクリメントしてキャッシュバスト
-- `SERVICE_LINKS` (app.js) にコンテナ名→URLのマッピングをハードコード
+- `SERVICE_LINKS` (`frontend/src/constants.ts`) にコンテナ名→URLのマッピングをハードコード
+- **Mac ローカル開発:**
+  ```bash
+  # バックエンド (Docker)
+  docker compose -f compose.dev.yaml up --build
+  # フロントエンド (Vite dev server — localhost:5173)
+  cd dashboard/frontend && npm run dev
+  ```
 
 ## Infrastructure Commands
 
