@@ -1,5 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { PowerChart } from '../charts/PowerChart';
+import { CardLabel } from './TileCard';
+import { padHistory } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function PowerTile() {
@@ -10,39 +12,55 @@ export function PowerTile() {
   const power = metrics?.power;
   const fmt   = (w?: number | null) => w != null ? `${w}W` : '—';
 
-  const win = Math.min(timeWindow, HIST_DISPLAY);
+  const win   = Math.min(timeWindow, HIST_DISPLAY);
   const slice = history.slice(-win);
-  const pad = (arr: (number | null)[]) => {
-    const a = arr.slice(-win);
-    return [...Array(Math.max(0, win - a.length)).fill(null), ...a] as (number | null)[];
-  };
+  const total = padHistory(slice.map(e => e.pow_total), win);
+  const cpu   = padHistory(slice.map(e => e.pow_cpu),   win);
+  const gpu   = padHistory(slice.map(e => e.pow_gpu),   win);
+  const dram  = padHistory(slice.map(e => e.pow_dram),  win);
 
-  const totalData = pad(slice.map(e => e.pow_total));
-  const cpuData   = pad(slice.map(e => e.pow_cpu));
-  const gpuData   = pad(slice.map(e => e.pow_gpu));
-  const dramData  = pad(slice.map(e => e.pow_dram));
-
-  const legend = [
-    { color: '#3b82f6', label: 'CPU',  val: fmt(power?.cpu)  },
-    { color: '#f59e0b', label: 'GPU',  val: fmt(power?.gpu)  },
-    { color: '#818cf8', label: 'DRAM', val: fmt(power?.dram) },
+  const breakdown = [
+    { color: '#3b82f6', label: 'CPU',  value: fmt(power?.cpu)  },
+    { color: '#f59e0b', label: 'GPU',  value: fmt(power?.gpu)  },
+    { color: '#818cf8', label: 'DRAM', value: fmt(power?.dram) },
   ];
 
   return (
-    <div className="card">
-      <div className="card-title">POWER</div>
-      <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: 'var(--text)', marginTop: 4, flexShrink: 0 }}>
-        {fmt(power?.total)}
+    <div style={{
+      width: '100%', height: '100%',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      padding: '14px 14px 12px',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Header: label + total */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexShrink: 0 }}>
+        <CardLabel>Power</CardLabel>
+        <div style={{ lineHeight: 1 }}>
+          <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+            {power?.total ?? '—'}
+          </span>
+          {power?.total != null && (
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--dim)', marginLeft: 3 }}>W</span>
+          )}
+        </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', marginTop: 4 }}>
-        <PowerChart total={totalData} cpu={cpuData} gpu={gpuData} dram={dramData} />
+
+      {/* Chart */}
+      <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
+        <PowerChart total={total} cpu={cpu} gpu={gpu} dram={dram} />
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4, flexShrink: 0 }}>
-        {legend.map(({ color, label, val }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10 }}>
+
+      {/* Breakdown */}
+      <div style={{ display: 'flex', gap: 16, flexShrink: 0, marginTop: 10 }}>
+        {breakdown.map(({ color, label, value }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block' }} />
-            <span style={{ color: 'var(--dim)' }}>{label}</span>
-            <span style={{ color: 'var(--text)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
+            <span style={{ fontSize: 11, color: 'var(--dim)' }}>{label}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
           </div>
         ))}
       </div>

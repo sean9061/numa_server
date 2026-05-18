@@ -28,10 +28,11 @@ export function fmtUptime(s?: number | null): string {
   return `${m}m`;
 }
 
-export function colorClass(pct: number): string {
-  if (pct >= 85) return 'color-crit';
-  if (pct >= 65) return 'color-warn';
-  return 'color-ok';
+/** CSS variable for status color — only colors when notable */
+export function statusColor(pct: number): string {
+  if (pct >= 85) return 'var(--red)';
+  if (pct >= 65) return 'var(--amber)';
+  return 'var(--text)';
 }
 
 export function barColor(pct: number, okColor = 'var(--blue)'): string {
@@ -40,8 +41,8 @@ export function barColor(pct: number, okColor = 'var(--blue)'): string {
   return okColor;
 }
 
-export function gaugeColor(pct: number, defaultColor: string): string {
-  if (pct >= 85) return 'var(--red)';
-  if (pct >= 65) return 'var(--amber)';
-  return defaultColor;
+/** Pad history array to `win` entries (null-fill left side) */
+export function padHistory(arr: (number | null)[], win: number): (number | null)[] {
+  const a = arr.slice(-win);
+  return [...Array(Math.max(0, win - a.length)).fill(null), ...a];
 }

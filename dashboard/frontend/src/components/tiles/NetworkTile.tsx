@@ -1,6 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { DualLineChart } from '../charts/DualLineChart';
-import { fmtBps } from '../../utils';
+import { CardLabel } from './TileCard';
+import { fmtBps, padHistory } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function NetworkTile() {
@@ -11,38 +12,49 @@ export function NetworkTile() {
   const net  = metrics?.network;
   const win  = Math.min(timeWindow, HIST_DISPLAY);
   const slice = history.slice(-win);
-  const pad = (arr: (number | null)[]) => {
-    const a = arr.slice(-win);
-    return [...Array(Math.max(0, win - a.length)).fill(0), ...a] as (number | null)[];
-  };
-  const rxData = pad(slice.map(e => e.net_rx ?? 0));
-  const txData = pad(slice.map(e => e.net_tx ?? 0));
+  const rxData = padHistory(slice.map(e => e.net_rx ?? 0), win);
+  const txData = padHistory(slice.map(e => e.net_tx ?? 0), win);
 
   return (
-    <div className="card">
-      <div className="card-title">
-        NETWORK &mdash;&nbsp;
-        <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--text)' }}>
-          {net?.iface ?? '—'}
-        </span>
+    <div style={{
+      width: '100%', height: '100%',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      overflow: 'hidden',
+      padding: '14px 14px 0',
+      display: 'flex',
+      flexDirection: 'column',
+    }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <CardLabel>Network</CardLabel>
+        {net?.iface && (
+          <span style={{ fontSize: 11, color: 'var(--dim)', fontFamily: 'monospace' }}>{net.iface}</span>
+        )}
       </div>
-      <div style={{ flex: 1, minHeight: 0, position: 'relative', marginTop: 6 }}>
-        <DualLineChart data0={rxData} data1={txData} color0="#3b82f6" color1="#818cf8" />
+
+      {/* Chart — fills remaining space, bleeds to bottom */}
+      <div style={{ flex: 1, minHeight: 0, marginTop: 8 }}>
+        <DualLineChart data0={rxData} data1={txData} color0="#3b82f6" color1="#9b8ffc" tickFormatter={fmtBps} />
       </div>
-      <div style={{ display: 'flex', gap: 14, flexShrink: 0, marginTop: 5 }}>
-        <NetStat color="var(--blue)"   val={fmtBps(net?.rx_sec)} label="↓ RX" />
-        <NetStat color="var(--purple)" val={fmtBps(net?.tx_sec)} label="↑ TX" />
+
+      {/* Current values row — sits above bottom edge */}
+      <div style={{ display: 'flex', gap: 24, flexShrink: 0, padding: '8px 0 14px' }}>
+        <NetStat direction="↓" label="RX" value={fmtBps(net?.rx_sec)} color="var(--blue)" />
+        <NetStat direction="↑" label="TX" value={fmtBps(net?.tx_sec)} color="var(--purple)" />
       </div>
     </div>
   );
 }
 
-function NetStat({ color, val, label }: { color: string; val: string; label: string }) {
+function NetStat({ direction, label, value, color }: { direction: string; label: string; value: string; color: string }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block' }} />
-      <span style={{ color, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{val}</span>
-      <span style={{ color: 'var(--dim)', fontSize: 10 }}>{label}</span>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+      <span style={{ fontSize: 22, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+        {value}
+      </span>
+      <span style={{ fontSize: 11, color: 'var(--dim)' }}>{direction} {label}</span>
     </div>
   );
 }

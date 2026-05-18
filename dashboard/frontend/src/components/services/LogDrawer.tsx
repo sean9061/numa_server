@@ -22,21 +22,54 @@ export function LogDrawer() {
   }
 
   return (
-    <div style={{ height: 185, flexShrink: 0, background: 'var(--surface)', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--dim)' }}>
-          LOGS — {selectedService}
-        </span>
+    <div style={{
+      height: 200,
+      flexShrink: 0,
+      background: 'var(--bg)',
+      borderTop: '1px solid var(--border)',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '7px 14px',
+        borderBottom: '1px solid var(--border)',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--dim)' }}>
+            Logs
+          </span>
+          <span style={{
+            fontSize: 11, color: 'var(--text)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 4,
+            padding: '1px 7px',
+            fontFamily: 'monospace',
+          }}>
+            {selectedService}
+          </span>
+        </div>
         <button
           onClick={close}
-          style={{ background: 'transparent', border: 'none', color: 'var(--dim)', cursor: 'pointer', fontSize: 15, lineHeight: 1, padding: '0 2px' }}
+          style={{
+            background: 'transparent', border: 'none',
+            color: 'var(--dim)', cursor: 'pointer',
+            fontSize: 16, lineHeight: 1, padding: '1px 4px',
+            borderRadius: 4,
+          }}
         >
           ✕
         </button>
       </div>
+
+      {/* Log content */}
       <div className="log-view" ref={viewRef}>
         {logLines.length === 0
-          ? <span style={{ color: 'var(--dim)' }}>Loading...</span>
+          ? <span style={{ color: 'var(--dim)' }}>Connecting...</span>
           : logLines.map((line, i) => (
             <div key={i} className={`log-line${/error|err|fatal|warn/i.test(line) ? ' err' : ''}`}>
               {line}
