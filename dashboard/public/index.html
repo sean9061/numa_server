@@ -94,25 +94,44 @@
     }
     #viewport.is-dragging { cursor: grabbing; }
 
-    /* ── Services panel ── */
+    /* ── Services panel (canvas structure) ── */
     #panel-services {
       position: absolute; inset: 0;
       display: none;
       flex-direction: column;
-      padding: 6px;
-      gap: 6px;
-      overflow: hidden;
       background: var(--bg);
     }
+    #services-viewport {
+      flex: 1; min-height: 0;
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      user-select: none; -webkit-user-select: none;
+    }
+    #services-viewport.is-dragging { cursor: grabbing; }
+    #services-canvas {
+      position: absolute; top: 0; left: 0;
+      width: 1268px;
+      transform-origin: 0 0;
+      will-change: transform;
+    }
+    #svc-tiles {
+      position: absolute; left: 0; top: 0; width: 1268px;
+      padding: 6px;
+    }
 
-    /* Subtle dot-grid background */
-    #viewport::before {
-      content: '';
-      position: absolute; inset: 0;
-      background-image: radial-gradient(circle, #2e2e2e 1px, transparent 1px);
+    /* Dot-grid: large element inside canvas so it pans/zooms with tiles */
+    .canvas-bg {
+      position: absolute;
+      left: -4000px; top: -4000px;
+      width: 12000px; height: 12000px;
+      background-image: radial-gradient(circle, #2a2a2a 1px, transparent 1px);
       background-size: 28px 28px;
       pointer-events: none;
+      z-index: 0;
     }
+    .tile, #svc-tiles { z-index: 1; }
 
     /* ── Infinite canvas ── */
     #canvas {
@@ -275,12 +294,9 @@
     .svc-link-btn:hover { background: rgba(59,130,246,0.22); border-color: var(--blue); }
 
     .svc-grid {
-      flex: 1; min-height: 0;
-      overflow-y: auto;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
       gap: var(--gap);
-      align-content: start;
     }
 
     /* ── Service card ── */
@@ -351,11 +367,11 @@
       background: rgba(74,158,255,0.10); border-color: rgba(74,158,255,0.4); color: var(--blue);
     }
 
-    /* ── Log drawer (flex child inside services panel) ── */
+    /* ── Log drawer (flex child at bottom of services panel) ── */
     #svc-log-drawer {
       height: 185px;
       flex-shrink: 0;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      background: var(--surface); border-top: 1px solid var(--border);
       flex-direction: column; overflow: hidden;
     }
     .svc-log-drawer-hdr {
@@ -379,6 +395,16 @@
     }
     .log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
     .log-line.err { color: #f87171; }
+
+    /* ── Header responsive ── */
+    @media (max-width: 900px) {
+      #header-meta { display: none; }
+    }
+    @media (max-width: 640px) {
+      #server-controls { display: none !important; }
+      .header-brand-text { display: none; }
+      #clock { display: none; }
+    }
 
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -404,7 +430,7 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/>
       </svg>
-      NUMA MONITOR
+      <span class="header-brand-text">NUMA MONITOR</span>
     </div>
     <div class="header-sep"></div>
     <div class="panel-toggle">
@@ -420,20 +446,23 @@
         </svg>
       </button>
     </div>
-    <div class="header-sep"></div>
-    <div class="header-stat">
-      <span class="header-stat-label">HOST</span>
-      <span class="header-stat-val">numa_01</span>
-    </div>
-    <div class="header-sep"></div>
-    <div class="header-stat">
-      <span class="header-stat-label">UPTIME</span>
-      <span class="header-stat-val" id="h-uptime">—</span>
-    </div>
-    <div class="header-sep"></div>
-    <div class="header-stat">
-      <span class="ws-dot" id="ws-dot"></span>
-      <span class="ws-label" id="ws-label">Connecting</span>
+    <!-- HOST / UPTIME / WS: hidden on narrow screens -->
+    <div id="header-meta" style="display:contents">
+      <div class="header-sep"></div>
+      <div class="header-stat">
+        <span class="header-stat-label">HOST</span>
+        <span class="header-stat-val">numa_01</span>
+      </div>
+      <div class="header-sep"></div>
+      <div class="header-stat">
+        <span class="header-stat-label">UPTIME</span>
+        <span class="header-stat-val" id="h-uptime">—</span>
+      </div>
+      <div class="header-sep"></div>
+      <div class="header-stat">
+        <span class="ws-dot" id="ws-dot"></span>
+        <span class="ws-label" id="ws-label">Connecting</span>
+      </div>
     </div>
     <div class="header-spacer"></div>
     <div id="server-controls" style="display:contents">
@@ -458,6 +487,7 @@
   <!-- Canvas viewport (server panel) -->
   <div id="viewport">
     <div id="canvas">
+      <div class="canvas-bg"></div>
 
       <!-- ── Row 1: CPU | GPU | RAM | Load ── -->
 
@@ -611,11 +641,19 @@
     </div><!-- /#canvas -->
   </div><!-- /#viewport -->
 
-  <!-- Services panel (separate, not on canvas) -->
+  <!-- Services panel (canvas) -->
   <div id="panel-services">
-    <div class="svc-grid" id="svc-grid">
-      <div style="color:var(--dim);font-size:12px;padding:8px">Loading...</div>
+    <div id="services-viewport">
+      <div id="services-canvas">
+        <div class="canvas-bg"></div>
+        <div id="svc-tiles">
+          <div class="svc-grid" id="svc-grid">
+            <div style="color:var(--dim);font-size:12px;padding:8px">Loading...</div>
+          </div>
+        </div>
+      </div>
     </div>
+    <!-- Log drawer: flex child at bottom, not on canvas -->
     <div id="svc-log-drawer" style="display:none">
       <div class="svc-log-drawer-hdr">
         <span class="svc-log-drawer-title" id="svc-log-drawer-title">LOGS</span>
@@ -627,6 +665,6 @@
 
   </div><!-- /#content -->
 
-<script src="/app.js?v=13"></script>
+<script src="/app.js?v=14"></script>
 </body>
 </html>

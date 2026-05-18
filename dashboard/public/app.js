@@ -163,8 +163,10 @@ class PanZoom {
   }
 
   _initView() {
-    // Defer until layout is painted
-    requestAnimationFrame(() => this.fitServer(false));
+    if (this.vp.clientWidth > 0) {
+      requestAnimationFrame(() => this.fitServer(false));
+    }
+    // If viewport is hidden (display:none), fitServer() is called on first switchPanel
   }
 }
 
@@ -180,8 +182,12 @@ function switchPanel(name) {
   document.getElementById('viewport').style.display        = isServer ? 'block'  : 'none';
   document.getElementById('panel-services').style.display  = isServer ? 'none'   : 'flex';
   document.getElementById('server-controls').style.display = isServer ? 'contents' : 'none';
-  if (name === 'services' && selectedService) {
-    ws?.send(JSON.stringify({ type: 'subscribe_logs', container: selectedService }));
+  if (!isServer) {
+    // Fit services canvas to viewport on first switch
+    requestAnimationFrame(() => svcpanzoom.fitServer());
+    if (selectedService) {
+      ws?.send(JSON.stringify({ type: 'subscribe_logs', container: selectedService }));
+    }
   }
 }
 
@@ -878,6 +884,11 @@ wsConnect();
 const panzoom = new PanZoom(
   document.getElementById('viewport'),
   document.getElementById('canvas')
+);
+
+const svcpanzoom = new PanZoom(
+  document.getElementById('services-viewport'),
+  document.getElementById('services-canvas')
 );
 
 // ── Panel toggle wiring ───────────────────────────────────────────────────────
