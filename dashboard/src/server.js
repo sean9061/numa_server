@@ -33,7 +33,7 @@ const loginLimit = rateLimit({
 app.use('/auth', loginLimit, authRouter);
 
 // Serve login page and static assets without auth
-app.use(express.static(join(__dirname, '../public')));
+app.use(express.static(join(__dirname, '../frontend/dist')));
 
 // Redirect / to login if not authenticated
 app.get('/', (req, res, next) => {
