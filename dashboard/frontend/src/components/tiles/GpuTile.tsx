@@ -1,8 +1,9 @@
 import { useStore } from '../../store/useStore';
-import { Sparkline } from '../charts/Sparkline';
-import { TileCard, CardLabel, HeroNumber } from './TileCard';
+import { DualLineChart } from '../charts/DualLineChart';
+import { CardLabel } from './TileCard';
 import { statusColor, barColor, fmtMB, padHistory } from '../../utils';
 import { GPU_COLORS, HIST_DISPLAY } from '../../constants';
+import type { GpuData } from '../../types';
 
 export function GpuTile() {
   const metrics    = useStore(s => s.metrics);
@@ -15,37 +16,108 @@ export function GpuTile() {
 
   if (!gpus.length) {
     return (
-      <TileCard>
+      <div style={{
+        width: '100%', height: '100%',
+        background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+        display: 'flex', flexDirection: 'column', padding: '14px 14px 10px',
+      }}>
         <CardLabel>GPU</CardLabel>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', color: 'var(--dim)', fontSize: 12 }}>
-          No GPU
+          No GPU detected
         </div>
-      </TileCard>
+      </div>
     );
   }
 
-  if (gpus.length === 1) {
-    const g = gpus[0];
-    const pct      = g.usage ?? 0;
-    const vramPct  = g.vram_total ? Math.round((g.vram_used! / g.vram_total) * 100) : null;
-    const usageData = padHistory(slice.map(e => e.gpu?.[0]?.usage ?? null), win);
-
-    return (
-      <TileCard strip={<Sparkline data={usageData} color={GPU_COLORS[0]} strip />}>
+  return (
+    <div style={{
+      width: '100%', height: '100%',
+      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+      overflow: 'hidden', display: 'flex', flexDirection: 'column',
+      padding: '14px 0 10px',
+    }}>
+      <div style={{ paddingInline: 14, flexShrink: 0 }}>
         <CardLabel>GPU</CardLabel>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
-          <span style={{ fontSize: 10, color: 'var(--dim)' }}>GPU 0</span>
-          <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
-            {g.temp != null && <>{g.temp}°C &nbsp;</>}
-            {g.power_draw != null && <>⚡ {g.power_draw.toFixed(0)}W</>}
-          </span>
+      </div>
+
+      {gpus.map((g, i) => (
+        <GpuSection
+          key={i}
+          index={i}
+          g={g}
+          usageData={padHistory(slice.map(e => e.gpu?.[i]?.usage    ?? null), win)}
+          vramData={padHistory(slice.map(e => e.gpu?.[i]?.vram_pct ?? null), win)}
+          showDivider={i > 0}
+        />
+      ))}
+    </div>
+  );
+}
+
+function GpuSection({ index, g, usageData, vramData, showDivider }: {
+  index: number;
+  g: GpuData;
+  usageData: (number | null)[];
+  vramData:  (number | null)[];
+  showDivider: boolean;
+}) {
+  const color     = GPU_COLORS[index % GPU_COLORS.length];
+  const usagePct  = g.usage ?? 0;
+  const vramPct   = g.vram_total ? Math.round((g.vram_used! / g.vram_total) * 100) : null;
+
+  return (
+    <>
+      {showDivider && <div style={{ height: 1, background: 'var(--border)', flexShrink: 0, marginBlock: 10 }} />}
+
+      <div style={{ flex: 1, minHeight: 0, paddingInline: 14, display: 'flex', flexDirection: 'column' }}>
+
+        {/* Model name + index */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 10, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>GPU {index}</span>
+          {g.name && (
+            <span style={{ fontSize: 10, color: 'var(--dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+              {g.name}
+            </span>
+          )}
         </div>
-        <HeroNumber value={pct} unit="%" label="Usage" color={statusColor(pct)} />
+
+        {/* Temp + power */}
+        <div style={{ marginTop: 4, flexShrink: 0, display: 'flex', gap: 10, alignItems: 'center' }}>
+          {g.temp != null && (
+            <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ color: 'var(--text)', fontWeight: 500 }}>{g.temp}</span>°C
+            </span>
+          )}
+          {g.power_draw != null && (
+            <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
+              ⚡ <span style={{ color: 'var(--text)', fontWeight: 500 }}>{g.power_draw.toFixed(0)}</span>
+              {g.power_limit != null && <> / {g.power_limit.toFixed(0)}</>} W
+            </span>
+          )}
+        </div>
+
+        {/* Dual hero: GPU usage + VRAM % */}
+        <div style={{ marginTop: 8, flexShrink: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <HeroBlock
+            value={`${usagePct.toFixed(0)}%`}
+            label="GPU"
+            color={statusColor(usagePct)}
+            accent={color}
+          />
+          <HeroBlock
+            value={vramPct != null ? `${vramPct}%` : '—'}
+            label="VRAM"
+            color={vramPct != null ? statusColor(vramPct) : 'var(--dim)'}
+            accent="#f59e0b"
+          />
+        </div>
+
+        {/* VRAM bar + capacity */}
         {g.vram_total != null && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 10, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>VRAM</span>
-              <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
+          <div style={{ marginTop: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 9, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>VRAM</span>
+              <span style={{ fontSize: 10, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
                 <span style={{ color: 'var(--text)', fontWeight: 500 }}>{fmtMB(g.vram_used)}</span>
                 {' / '}{fmtMB(g.vram_total)}
               </span>
@@ -53,103 +125,57 @@ export function GpuTile() {
             <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', width: `${vramPct ?? 0}%`,
-                background: barColor(vramPct ?? 0, 'var(--amber)'),
+                background: barColor(vramPct ?? 0, '#f59e0b'),
                 borderRadius: 2, transition: 'width 0.4s ease',
               }} />
             </div>
           </div>
         )}
-      </TileCard>
-    );
-  }
 
-  // 2+ GPUs: side-by-side columns
+        {/* Chart legend */}
+        <div style={{ marginTop: 8, flexShrink: 0, display: 'flex', gap: 12 }}>
+          <LegendDot color={color} label="Usage" />
+          <LegendDot color="#f59e0b" label="VRAM %" />
+        </div>
+
+        {/* Dual line chart */}
+        <div style={{ flex: 1, minHeight: 0, marginTop: 4 }}>
+          <DualLineChart
+            data0={usageData}
+            data1={vramData}
+            color0={color}
+            color1="#f59e0b"
+            strip
+            idPrefix={`gpu${index}`}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+function HeroBlock({ value, label, color, accent }: {
+  value: string; label: string; color: string; accent: string;
+}) {
   return (
     <div style={{
-      width: '100%', height: '100%',
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '14px 0 10px',
+      background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8,
+      padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2,
     }}>
-      <div style={{ paddingInline: 14, flexShrink: 0 }}>
-        <CardLabel>GPU</CardLabel>
-      </div>
-
-      <div style={{
-        flex: 1, minHeight: 0, marginTop: 10,
-        display: 'grid',
-        gridTemplateColumns: '1fr 1px 1fr',
-      }}>
-        {(() => {
-          const [g0, g1] = gpus;
-          const mk = (g: typeof g0, i: number) => {
-            const pct       = g.usage ?? 0;
-            const color     = GPU_COLORS[i % GPU_COLORS.length];
-            const vramPct   = g.vram_total ? Math.round((g.vram_used! / g.vram_total) * 100) : null;
-            const usageData = padHistory(slice.map(e => e.gpu?.[i]?.usage ?? null), win);
-            return <GpuColumn key={i} index={i} g={g} pct={pct} color={color} vramPct={vramPct} usageData={usageData} />;
-          };
-          return [mk(g0, 0), <div key="div" style={{ background: 'var(--border)' }} />, mk(g1, 1)];
-        })()}
-      </div>
+      <span style={{ fontSize: 9, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+      <span style={{ fontSize: 26, fontWeight: 700, lineHeight: 1, color, fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </span>
+      <div style={{ height: 2, background: accent, borderRadius: 1, opacity: 0.5, marginTop: 2 }} />
     </div>
   );
 }
 
-function GpuColumn({ index, g, pct, color, vramPct, usageData }: {
-  index: number;
-  g: { temp?: number | null; power_draw?: number | null; vram_used?: number | null; vram_total?: number | null };
-  pct: number;
-  color: string;
-  vramPct: number | null;
-  usageData: (number | null)[];
-}) {
+function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <div style={{ paddingInline: 12, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <span style={{ fontSize: 10, color: 'var(--dim)' }}>GPU {index}</span>
-        <span style={{ fontSize: 10, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
-          {g.temp != null && <>{g.temp}°</>}
-        </span>
-      </div>
-
-      {/* Hero */}
-      <div style={{ marginTop: 6, flexShrink: 0 }}>
-        <span style={{ fontSize: 38, fontWeight: 700, lineHeight: 1, color: statusColor(pct), fontVariantNumeric: 'tabular-nums' }}>
-          {pct.toFixed(0)}
-        </span>
-        <span style={{ fontSize: 14, color: 'var(--dim)', marginLeft: 2 }}>%</span>
-        {g.power_draw != null && (
-          <div style={{ fontSize: 10, color: 'var(--dim)', marginTop: 1 }}>⚡ {g.power_draw.toFixed(0)}W</div>
-        )}
-      </div>
-
-      {/* VRAM bar */}
-      {g.vram_total != null && (
-        <div style={{ marginTop: 8, flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-            <span style={{ fontSize: 9, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>VRAM</span>
-            <span style={{ fontSize: 9, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>{vramPct}%</span>
-          </div>
-          <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${vramPct ?? 0}%`,
-              background: barColor(vramPct ?? 0, 'var(--amber)'),
-              borderRadius: 2, transition: 'width 0.4s ease',
-            }} />
-          </div>
-        </div>
-      )}
-
-      {/* Sparkline */}
-      <div style={{ flex: 1, minHeight: 0, marginTop: 8 }}>
-        <Sparkline data={usageData} color={color} />
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      <div style={{ width: 8, height: 2, background: color, borderRadius: 1 }} />
+      <span style={{ fontSize: 9, color: 'var(--dim)' }}>{label}</span>
     </div>
   );
 }

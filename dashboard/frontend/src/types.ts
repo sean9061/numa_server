@@ -1,7 +1,10 @@
 export interface GpuData {
+  name?: string;
   usage: number;
+  mem_usage?: number;
   temp?: number;
   power_draw?: number;
+  power_limit?: number;
   vram_used?: number;
   vram_total?: number;
 }
@@ -38,6 +41,11 @@ export interface Metrics {
     rx_sec?: number;
     wx_sec?: number;
   };
+  disk_breakdown?: Array<{
+    path: string;
+    label: string;
+    bytes: number;
+  }>;
   power?: {
     total?: number;
     cpu?: number;
