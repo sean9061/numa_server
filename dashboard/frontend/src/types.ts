@@ -41,6 +41,11 @@ export interface Metrics {
     rx_sec?: number;
     wx_sec?: number;
   };
+  disk_breakdown?: Array<{
+    path: string;
+    label: string;
+    bytes: number;
+  }>;
   power?: {
     total?: number;
     cpu?: number;

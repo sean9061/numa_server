@@ -2,30 +2,67 @@ import { useStore } from '../../store/useStore';
 import { DiskDonut } from '../charts/DiskDonut';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
-import { statusColor, fmtBps, barColor, padHistory } from '../../utils';
-import { DISK_COLORS, DISK_COLORS_DIM, HIST_DISPLAY } from '../../constants';
+import { statusColor, fmtBps, padHistory } from '../../utils';
+import { HIST_DISPLAY } from '../../constants';
+
+// Breakdown dir colors: Docker, /home, /opt, /root, Other
+const BREAK_COLORS  = ['#3b82f6', '#22c55e', '#818cf8', '#f59e0b', '#52525b'];
+const MOUNT_COLORS  = ['#e879f9', '#34d399', '#fb923c'];
+
+function fmtGB(bytes: number): string {
+  const gb = bytes / 1024 ** 3;
+  return gb >= 1 ? `${gb.toFixed(1)} GB` : `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
 
 export function DiskTile() {
   const metrics    = useStore(s => s.metrics);
   const history    = useStore(s => s.history);
   const timeWindow = useStore(s => s.timeWindow);
 
-  const disks  = metrics?.disk ?? [];
-  const diskIO = metrics?.disk_io;
-
-  const totalUsed = disks.reduce((s, x) => s + (x.used || 0), 0);
-  const totalSize = disks.reduce((s, x) => s + (x.size || 0), 0);
-  const totalPct  = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
-
-  const segments = disks.flatMap((disk, i) => [
-    { value: disk.used,                      color: DISK_COLORS[i % DISK_COLORS.length] },
-    { value: Math.max(0, disk.size - disk.used), color: DISK_COLORS_DIM[i % DISK_COLORS_DIM.length] },
-  ]);
+  const disks     = metrics?.disk     ?? [];
+  const diskIO    = metrics?.disk_io;
+  const breakdown = metrics?.disk_breakdown ?? null;
 
   const win    = Math.min(timeWindow, HIST_DISPLAY);
   const slice  = history.slice(-win);
   const rxData = padHistory(slice.map(e => e.disk_rx ?? 0), win);
   const wxData = padHistory(slice.map(e => e.disk_wx ?? 0), win);
+
+  const totalUsed = disks.reduce((s, x) => s + (x.used || 0), 0);
+  const totalSize = disks.reduce((s, x) => s + (x.size || 0), 0);
+  const totalPct  = totalSize > 0 ? Math.round((totalUsed / totalSize) * 100) : 0;
+
+  // Build labeled segments
+  type Seg = { label: string; bytes: number; color: string };
+  const segs: Seg[] = [];
+
+  const rootDisk   = disks.find(d => d.mount === '/') ?? disks[0];
+  const otherDisks = disks.filter(d => d !== rootDisk);
+
+  if (breakdown && breakdown.length > 0 && rootDisk) {
+    breakdown.forEach((b, i) => {
+      segs.push({ label: b.label, bytes: b.bytes, color: BREAK_COLORS[i % BREAK_COLORS.length] });
+    });
+    const known = breakdown.reduce((s, b) => s + b.bytes, 0);
+    const other = Math.max(0, rootDisk.used - known);
+    if (other > 50 * 1024 * 1024) {
+      segs.push({ label: 'Other', bytes: other, color: BREAK_COLORS[4] });
+    }
+    otherDisks.forEach((d, i) => {
+      segs.push({ label: d.mount, bytes: d.used, color: MOUNT_COLORS[i % MOUNT_COLORS.length] });
+    });
+  } else {
+    // Breakdown not yet loaded — show per-mount until it arrives
+    disks.forEach((d, i) => {
+      segs.push({ label: d.mount, bytes: d.used, color: BREAK_COLORS[i % BREAK_COLORS.length] });
+    });
+  }
+
+  const totalFree = Math.max(0, totalSize - totalUsed);
+  const donutSegs = [
+    ...segs.map(s => ({ value: s.bytes, color: s.color })),
+    ...(totalFree > 0 ? [{ value: totalFree, color: 'rgba(255,255,255,0.05)' }] : []),
+  ];
 
   return (
     <div style={{
@@ -38,13 +75,12 @@ export function DiskTile() {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      {/* Header */}
       <CardLabel>Disk</CardLabel>
 
-      {/* Donut + center text */}
-      <div style={{ position: 'relative', height: 96, flexShrink: 0, marginTop: 8 }}>
-        {segments.length > 0
-          ? <DiskDonut segments={segments} />
+      {/* Donut + center % */}
+      <div style={{ position: 'relative', height: 88, flexShrink: 0, marginTop: 8 }}>
+        {donutSegs.length > 0
+          ? <DiskDonut segments={donutSegs} />
           : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 11 }}>No data</div>
         }
         <div style={{
@@ -52,34 +88,30 @@ export function DiskTile() {
           transform: 'translate(-50%,-50%)',
           textAlign: 'center', pointerEvents: 'none',
         }}>
-          <div style={{ fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1, color: statusColor(totalPct) }}>
+          <div style={{ fontSize: 20, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1, color: statusColor(totalPct) }}>
             {disks.length ? `${totalPct}%` : '—'}
           </div>
           <div style={{ fontSize: 9, color: 'var(--dim)', marginTop: 2, textTransform: 'uppercase' }}>Used</div>
         </div>
       </div>
 
-      {/* Mount list */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, marginTop: 8 }}>
-        {disks.map((disk, i) => {
-          const pct = disk.size > 0 ? Math.round((disk.used / disk.size) * 100) : 0;
-          return (
-            <div key={disk.mount} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: DISK_COLORS[i % DISK_COLORS.length], flexShrink: 0, display: 'inline-block' }} />
-              <span style={{ fontSize: 10, color: 'var(--dim)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {disk.mount}
-              </span>
-              <div style={{ width: 52, height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden', flexShrink: 0 }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: barColor(pct, DISK_COLORS[i % DISK_COLORS.length]), borderRadius: 2, transition: 'width 0.4s ease' }} />
-              </div>
-              <span style={{ fontSize: 10, color: 'var(--dim)', width: 26, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
-            </div>
-          );
-        })}
+      {/* Breakdown legend */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 4, marginTop: 6 }}>
+        {segs.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0, display: 'inline-block' }} />
+            <span style={{ fontSize: 10, color: 'var(--dim)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {s.label}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--text)', fontWeight: 500, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+              {fmtGB(s.bytes)}
+            </span>
+          </div>
+        ))}
       </div>
 
       {/* I/O values */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 20, padding: '6px 0 6px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 20, padding: '5px 0 4px', flexShrink: 0 }}>
         <IoStat arrow="↓" label="R" value={fmtBps(diskIO?.rx_sec)} color="var(--blue)" />
         <IoStat arrow="↑" label="W" value={fmtBps(diskIO?.wx_sec)} color="var(--amber)" />
       </div>
@@ -87,7 +119,7 @@ export function DiskTile() {
       {/* I/O strip */}
       <div style={{ height: 1, background: 'var(--border)', flexShrink: 0 }} />
       <div style={{ height: 36, flexShrink: 0 }}>
-        <DualLineChart data0={rxData} data1={wxData} color0="var(--blue)" color1="var(--amber)" strip />
+        <DualLineChart data0={rxData} data1={wxData} color0="var(--blue)" color1="var(--amber)" strip idPrefix="disk" />
       </div>
     </div>
   );

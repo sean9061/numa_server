@@ -283,6 +283,33 @@ async function getDisk() {
   }
 }
 
+// Directory-level disk breakdown (slow — cached, updated every 5 min)
+const BREAKDOWN_DIRS = [
+  { path: '/var/lib/docker', label: 'Docker' },
+  { path: '/home',           label: '/home'  },
+  { path: '/opt',            label: '/opt'   },
+  { path: '/root',           label: '/root'  },
+];
+let _diskBreakdown = null;
+let _diskBreakdownTs = 0;
+
+async function scanDiskBreakdown() {
+  const results = [];
+  for (const { path, label } of BREAKDOWN_DIRS) {
+    try {
+      const { stdout } = await exec('du', ['-s', '--bytes', path], { timeout: 15000 });
+      const bytes = parseInt(stdout.split('\t')[0]);
+      if (!isNaN(bytes) && bytes > 0) results.push({ path, label, bytes });
+    } catch { /* dir missing or permission denied — skip */ }
+  }
+  _diskBreakdown = results.length > 0 ? results : [];
+  _diskBreakdownTs = Date.now();
+}
+
+// Start background scan immediately, then every 5 minutes
+scanDiskBreakdown();
+setInterval(scanDiskBreakdown, 5 * 60 * 1000);
+
 // Load average from /proc/loadavg
 async function getLoadAvg() {
   try {
@@ -330,8 +357,9 @@ export async function collectMetrics() {
     gpu:      gpus,
     ram:      v(1),
     network:  v(2) ?? { rx_sec: 0, tx_sec: 0, iface: 'unknown' },
-    disk:     v(6) ?? [],
-    disk_io:  v(9),
+    disk:           v(6) ?? [],
+    disk_io:        v(9),
+    disk_breakdown: _diskBreakdown,
     load:     v(7),
     uptime:   v(8),
     power: {
