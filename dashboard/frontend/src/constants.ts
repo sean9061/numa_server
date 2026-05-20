@@ -4,15 +4,15 @@ export const MAX_HIST = 1800;
 export const LOG_MAX = 200;
 export const STRIP_H = 44; // bottom chart strip height
 
-// Tile layout — Row 1 (h=220), Row 2 (y=232, h=260)
+// Tile layout — GPU spans full height; row 2 sits under cpu/ram/load columns
 export const TILES = {
   cpu:     { x: 0,   y: 0,   w: 284, h: 220 },
-  gpu:     { x: 296, y: 0,   w: 388, h: 220 },
+  gpu:     { x: 296, y: 0,   w: 388, h: 492 },
   ram:     { x: 696, y: 0,   w: 284, h: 220 },
   load:    { x: 992, y: 0,   w: 276, h: 220 },
-  network: { x: 0,   y: 232, w: 476, h: 260 },
-  disk:    { x: 488, y: 232, w: 296, h: 260 },
-  power:   { x: 796, y: 232, w: 472, h: 260 },
+  network: { x: 0,   y: 232, w: 284, h: 260 },
+  disk:    { x: 696, y: 232, w: 284, h: 260 },
+  power:   { x: 992, y: 232, w: 276, h: 260 },
 } as const;
 
 export const SERVER_H = 232 + 260; // 492

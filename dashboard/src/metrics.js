@@ -128,7 +128,7 @@ const NVIDIA_SMI_PATHS = [
   '/usr/local/nvidia/bin/nvidia-smi',
 ];
 const NV_ARGS = [
-  '--query-gpu=utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
+  '--query-gpu=name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
   '--format=csv,noheader,nounits',
 ];
 const nv = s => { const v = parseFloat(s.trim()); return isNaN(v) ? null : v; };
@@ -138,19 +138,25 @@ async function getGpu() {
     try {
       const { stdout } = await exec(smiPath, NV_ARGS, { timeout: 5000 });
       const gpus = stdout.trim().split('\n')
-        .map(line => line.split(',').map(nv))
-        .filter(parts => parts.length >= 4 && parts[0] != null && parts[3] != null)
-        .map(parts => ({
-          usage:       parts[0],
-          mem_usage:   parts[1],
-          vram_used:   parts[2],
-          vram_total:  parts[3],
-          temp:        parts[4],
-          power_draw:  parts[5],
-          power_limit: parts[6],
-        }));
+        .map(line => {
+          const parts = line.split(', ');
+          if (parts.length < 5) return null;
+          const [name, ...rest] = parts;
+          const nums = rest.map(nv);
+          return {
+            name:        name?.trim() || null,
+            usage:       nums[0],
+            mem_usage:   nums[1],
+            vram_used:   nums[2],
+            vram_total:  nums[3],
+            temp:        nums[4],
+            power_draw:  nums[5],
+            power_limit: nums[6],
+          };
+        })
+        .filter(g => g !== null && g.vram_total != null);
       if (gpus.length === 0) continue;
-      return gpus; // always return array
+      return gpus;
     } catch {
       // try next path
     }

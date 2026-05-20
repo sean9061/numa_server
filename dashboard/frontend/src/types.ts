@@ -1,7 +1,10 @@
 export interface GpuData {
+  name?: string;
   usage: number;
+  mem_usage?: number;
   temp?: number;
   power_draw?: number;
+  power_limit?: number;
   vram_used?: number;
   vram_total?: number;
 }
