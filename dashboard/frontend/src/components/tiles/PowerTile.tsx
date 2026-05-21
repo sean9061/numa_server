@@ -1,7 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { PowerChart } from '../charts/PowerChart';
 import { CardLabel } from './TileCard';
-import { padHistory } from '../../utils';
+import { downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function PowerTile() {
@@ -12,12 +12,11 @@ export function PowerTile() {
   const power = metrics?.power;
   const fmt   = (w?: number | null) => w != null ? `${w}W` : '—';
 
-  const win   = Math.min(timeWindow, HIST_DISPLAY);
-  const slice = history.slice(-win);
-  const total = padHistory(slice.map(e => e.pow_total), win);
-  const cpu   = padHistory(slice.map(e => e.pow_cpu),   win);
-  const gpu   = padHistory(slice.map(e => e.pow_gpu),   win);
-  const dram  = padHistory(slice.map(e => e.pow_dram),  win);
+  const slice = history.slice(-timeWindow);
+  const total = downsample(slice.map(e => e.pow_total), HIST_DISPLAY);
+  const cpu   = downsample(slice.map(e => e.pow_cpu),   HIST_DISPLAY);
+  const gpu   = downsample(slice.map(e => e.pow_gpu),   HIST_DISPLAY);
+  const dram  = downsample(slice.map(e => e.pow_dram),  HIST_DISPLAY);
 
   const breakdown = [
     { color: '#3b82f6', label: 'CPU',  value: fmt(power?.cpu)  },

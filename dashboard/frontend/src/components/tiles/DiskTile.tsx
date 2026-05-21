@@ -2,7 +2,7 @@ import { useStore } from '../../store/useStore';
 import { DiskDonut } from '../charts/DiskDonut';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
-import { statusColor, fmtBps, padHistory } from '../../utils';
+import { statusColor, fmtBps, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 // Breakdown dir colors: Docker, /home, /opt, /root, Other
@@ -23,10 +23,9 @@ export function DiskTile() {
   const diskIO    = metrics?.disk_io;
   const breakdown = metrics?.disk_breakdown ?? null;
 
-  const win    = Math.min(timeWindow, HIST_DISPLAY);
-  const slice  = history.slice(-win);
-  const rxData = padHistory(slice.map(e => e.disk_rx ?? 0), win);
-  const wxData = padHistory(slice.map(e => e.disk_wx ?? 0), win);
+  const slice  = history.slice(-timeWindow);
+  const rxData = downsample(slice.map(e => e.disk_rx ?? 0), HIST_DISPLAY);
+  const wxData = downsample(slice.map(e => e.disk_wx ?? 0), HIST_DISPLAY);
 
   const totalUsed = disks.reduce((s, x) => s + (x.used || 0), 0);
   const totalSize = disks.reduce((s, x) => s + (x.size || 0), 0);
@@ -78,7 +77,7 @@ export function DiskTile() {
       <CardLabel>Disk</CardLabel>
 
       {/* Donut + center % */}
-      <div style={{ position: 'relative', height: 88, flexShrink: 0, marginTop: 8 }}>
+      <div style={{ position: 'relative', height: 80, flexShrink: 0, marginTop: 8 }}>
         {donutSegs.length > 0
           ? <DiskDonut segments={donutSegs} />
           : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 11 }}>No data</div>

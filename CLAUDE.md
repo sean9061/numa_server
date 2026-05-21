@@ -101,6 +101,38 @@ docker exec -it ollama ollama pull <model>
 docker exec -it ollama ollama list
 ```
 
+## Dashboard — Data Flow & Architecture
+
+### Backend pipeline
+```
+metrics.js (collect every 2s) → history.js (ring buffer, MAX_ENTRIES=1800)
+                                         ↓
+server.js → WS broadcast:
+  { type: 'history', data: ring }    — on client connect (full history)
+  { type: 'metrics', data: {...} }   — every 2s
+  { type: 'docker',  data: [...] }   — every 5s
+```
+History persisted to `dashboard/data/metrics_history.json` every 60s and on shutdown.
+
+### Frontend pipeline
+```
+WebSocket → useStore.ts → tiles → charts (Recharts)
+```
+- `setHistory(entries)` populates the store on connect; `setMetrics(d)` appends each tick
+- `timeWindow` (pts: 60/300/900/1800) controls how many history entries are sliced
+- `downsample(arr, HIST_DISPLAY)` in `utils.ts` aggregates that slice to 60 chart points
+  - If slice < 60 pts: left-pad with nulls; if > 60 pts: average-bucket aggregate
+  - **Never** use `Math.min(timeWindow, HIST_DISPLAY)` — it breaks time range selection
+
+### Key constants (`frontend/src/constants.ts`)
+- `HIST_DISPLAY = 60` — chart render points (always fixed)
+- `MAX_HIST = 1800` — frontend store limit (mirrors backend ring size = 1h at 2s intervals)
+
+### Adding a new tile
+1. Create `frontend/src/components/tiles/XxxTile.tsx`
+2. Consume `history.slice(-timeWindow)`, then call `downsample(arr, HIST_DISPLAY)`
+3. Wire into `frontend/src/components/panels/ServerPanel.tsx` layout + `constants.ts` `TILES` map
+
 ## Adding a New Service
 
 1. ディレクトリを作成し `compose.yaml` を追加

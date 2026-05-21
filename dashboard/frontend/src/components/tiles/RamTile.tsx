@@ -1,7 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { Sparkline } from '../charts/Sparkline';
 import { TileCard, CardLabel, HeroNumber } from './TileCard';
-import { statusColor, fmtBytes, padHistory } from '../../utils';
+import { statusColor, fmtBytes, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function RamTile() {
@@ -11,8 +11,7 @@ export function RamTile() {
 
   const ram  = metrics?.ram;
   const pct  = ram?.percent ?? 0;
-  const win  = Math.min(timeWindow, HIST_DISPLAY);
-  const data = padHistory(history.slice(-win).map(e => e.ram), win);
+  const data = downsample(history.slice(-timeWindow).map(e => e.ram), HIST_DISPLAY);
 
   const swapPct = ram?.swap_total
     ? Math.round(((ram.swap_used ?? 0) / ram.swap_total) * 100)

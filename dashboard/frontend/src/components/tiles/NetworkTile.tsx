@@ -1,7 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
-import { fmtBps, padHistory } from '../../utils';
+import { fmtBps, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function NetworkTile() {
@@ -10,10 +10,9 @@ export function NetworkTile() {
   const timeWindow = useStore(s => s.timeWindow);
 
   const net  = metrics?.network;
-  const win  = Math.min(timeWindow, HIST_DISPLAY);
-  const slice = history.slice(-win);
-  const rxData = padHistory(slice.map(e => e.net_rx ?? 0), win);
-  const txData = padHistory(slice.map(e => e.net_tx ?? 0), win);
+  const slice  = history.slice(-timeWindow);
+  const rxData = downsample(slice.map(e => e.net_rx ?? 0), HIST_DISPLAY);
+  const txData = downsample(slice.map(e => e.net_tx ?? 0), HIST_DISPLAY);
 
   return (
     <div style={{
