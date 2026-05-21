@@ -77,7 +77,7 @@ export function DiskTile() {
       <CardLabel>Disk</CardLabel>
 
       {/* Donut + center % */}
-      <div style={{ position: 'relative', height: 88, flexShrink: 0, marginTop: 8 }}>
+      <div style={{ position: 'relative', height: 80, flexShrink: 0, marginTop: 8 }}>
         {donutSegs.length > 0
           ? <DiskDonut segments={donutSegs} />
           : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--dim)', fontSize: 11 }}>No data</div>

@@ -1,21 +1,23 @@
-export const CANVAS_W = 1268;
+export const CANVAS_W = 1356;
 export const HIST_DISPLAY = 60;
 export const MAX_HIST = 1800;
 export const LOG_MAX = 200;
 export const STRIP_H = 44; // bottom chart strip height
 
 // Tile layout — GPU spans full height; row 2 sits under cpu/ram/load columns
+// Col widths: 308 | 12gap | 408 | 12gap | 308 | 12gap | 296 = 1356
+// Row heights: 240 | 12gap | 296 = 548
 export const TILES = {
-  cpu:     { x: 0,   y: 0,   w: 284, h: 220 },
-  gpu:     { x: 296, y: 0,   w: 388, h: 492 },
-  ram:     { x: 696, y: 0,   w: 284, h: 220 },
-  load:    { x: 992, y: 0,   w: 276, h: 220 },
-  network: { x: 0,   y: 232, w: 284, h: 260 },
-  disk:    { x: 696, y: 232, w: 284, h: 260 },
-  power:   { x: 992, y: 232, w: 276, h: 260 },
+  cpu:     { x: 0,    y: 0,   w: 308, h: 240 },
+  gpu:     { x: 320,  y: 0,   w: 408, h: 548 },
+  ram:     { x: 740,  y: 0,   w: 308, h: 240 },
+  load:    { x: 1060, y: 0,   w: 296, h: 240 },
+  network: { x: 0,    y: 252, w: 308, h: 296 },
+  disk:    { x: 740,  y: 252, w: 308, h: 296 },
+  power:   { x: 1060, y: 252, w: 296, h: 296 },
 } as const;
 
-export const SERVER_H = 232 + 260; // 492
+export const SERVER_H = 252 + 296; // 548
 
 export const SERVICE_LINKS: Record<string, string> = {
   'portfolio-container': 'https://s3an.dev',
