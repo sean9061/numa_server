@@ -1,7 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
-import { statusColor, barColor, fmtMB, padHistory } from '../../utils';
+import { statusColor, barColor, fmtMB, downsample } from '../../utils';
 import { GPU_COLORS, HIST_DISPLAY } from '../../constants';
 import type { GpuData } from '../../types';
 
@@ -11,8 +11,7 @@ export function GpuTile() {
   const timeWindow = useStore(s => s.timeWindow);
   const gpus       = metrics?.gpu ?? [];
 
-  const win   = Math.min(timeWindow, HIST_DISPLAY);
-  const slice = history.slice(-win);
+  const slice = history.slice(-timeWindow);
 
   if (!gpus.length) {
     return (
@@ -45,8 +44,8 @@ export function GpuTile() {
           key={i}
           index={i}
           g={g}
-          usageData={padHistory(slice.map(e => e.gpu?.[i]?.usage    ?? null), win)}
-          vramData={padHistory(slice.map(e => e.gpu?.[i]?.vram_pct ?? null), win)}
+          usageData={downsample(slice.map(e => e.gpu?.[i]?.usage    ?? null), HIST_DISPLAY)}
+          vramData={downsample(slice.map(e => e.gpu?.[i]?.vram_pct ?? null), HIST_DISPLAY)}
           showDivider={i > 0}
         />
       ))}

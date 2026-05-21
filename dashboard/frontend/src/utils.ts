@@ -46,3 +46,24 @@ export function padHistory(arr: (number | null)[], win: number): (number | null)
   const a = arr.slice(-win);
   return [...Array(Math.max(0, win - a.length)).fill(null), ...a];
 }
+
+/**
+ * Downsample `arr` to exactly `target` points.
+ * If shorter than target: pad left with nulls (same as padHistory).
+ * If longer: average-bucket aggregate so larger timeWindows show full range.
+ */
+export function downsample(arr: (number | null)[], target: number): (number | null)[] {
+  if (arr.length === 0) return Array(target).fill(null);
+  if (arr.length <= target) {
+    return [...Array(target - arr.length).fill(null), ...arr];
+  }
+  const result: (number | null)[] = [];
+  const bucketSize = arr.length / target;
+  for (let i = 0; i < target; i++) {
+    const start = Math.floor(i * bucketSize);
+    const end   = Math.floor((i + 1) * bucketSize);
+    const vals  = arr.slice(start, end).filter((v): v is number => v !== null);
+    result.push(vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null);
+  }
+  return result;
+}

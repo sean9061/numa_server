@@ -1,7 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { Sparkline } from '../charts/Sparkline';
 import { TileCard, CardLabel, HeroNumber } from './TileCard';
-import { statusColor, barColor, padHistory } from '../../utils';
+import { statusColor, barColor, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function CpuTile() {
@@ -11,8 +11,7 @@ export function CpuTile() {
 
   const cpu  = metrics?.cpu;
   const pct  = cpu?.usage ?? 0;
-  const win  = Math.min(timeWindow, HIST_DISPLAY);
-  const data = padHistory(history.slice(-win).map(e => e.cpu), win);
+  const data = downsample(history.slice(-timeWindow).map(e => e.cpu), HIST_DISPLAY);
 
   return (
     <TileCard strip={<Sparkline data={data} color="#3b82f6" strip />}>
