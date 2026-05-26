@@ -1,6 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { Sparkline } from '../charts/Sparkline';
 import { TileCard, CardLabel, HeroNumber } from './TileCard';
+import { FanIcon } from '../FanIcon';
 import { statusColor, barColor, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
@@ -40,12 +41,18 @@ export function CpuTile() {
         </div>
       )}
 
-      {/* Power */}
-      {cpu?.power != null && (
-        <div style={{ marginTop: 6, flexShrink: 0 }}>
-          <Pill dim>⚡ {cpu.power}W</Pill>
-        </div>
-      )}
+      {/* Power + Fan */}
+      <div style={{ marginTop: 6, flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {cpu?.power != null
+          ? <Pill dim>⚡ {cpu.power}W</Pill>
+          : <span />}
+        {cpu?.fan_rpm != null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--dim)' }}>
+            <FanIcon rpm={cpu.fan_rpm} size={13} />
+            <Pill dim>{cpu.fan_rpm} RPM</Pill>
+          </div>
+        )}
+      </div>
     </TileCard>
   );
 }

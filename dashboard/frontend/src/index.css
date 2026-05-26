@@ -133,5 +133,10 @@ html, body {
 .log-line { color: var(--dim); white-space: pre-wrap; word-break: break-all; }
 .log-line.err { color: #f87171; }
 
+/* ── Fan animation ── */
+@keyframes fan-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ── Recharts customization ── */
 .recharts-surface { overflow: visible; }

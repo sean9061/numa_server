@@ -121,6 +121,19 @@ async function getNetworkRate() {
   }
 }
 
+// CPU fan speed from hwmon
+async function getCpuFan() {
+  for (let h = 0; h < 10; h++) {
+    for (let f = 1; f <= 6; f++) {
+      try {
+        const rpm = parseInt((await readFile(`/sys/class/hwmon/hwmon${h}/fan${f}_input`, 'utf-8')).trim());
+        if (!isNaN(rpm) && rpm >= 0) return rpm;
+      } catch { /* try next */ }
+    }
+  }
+  return null;
+}
+
 // GPU via nvidia-smi (複数パスを試行)
 const NVIDIA_SMI_PATHS = [
   'nvidia-smi',
@@ -128,7 +141,7 @@ const NVIDIA_SMI_PATHS = [
   '/usr/local/nvidia/bin/nvidia-smi',
 ];
 const NV_ARGS = [
-  '--query-gpu=name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit',
+  '--query-gpu=name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed',
   '--format=csv,noheader,nounits',
 ];
 const nv = s => { const v = parseFloat(s.trim()); return isNaN(v) ? null : v; };
@@ -152,6 +165,7 @@ async function getGpu() {
             temp:        nums[4],
             power_draw:  nums[5],
             power_limit: nums[6],
+            fan_pct:     nums[7],
           };
         })
         .filter(g => g !== null && g.vram_total != null);
@@ -188,12 +202,16 @@ async function getCpuTemp() {
 }
 
 // CPU power via Intel RAPL
+// /host-rapl is mounted from /sys/devices/virtual/powercap/intel-rapl on the host.
+// Docker masks /sys/devices/virtual/powercap inside containers with tmpfs;
+// mounting to a different path bypasses that mask.
 const RAPL_PATHS = [
+  '/host-rapl/intel-rapl:0/energy_uj',
   '/sys/class/powercap/intel-rapl:0/energy_uj',
   '/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj',
 ];
+
 let raplPath = null;
-let dramRaplPath = undefined; // undefined = not yet searched, null = not found
 
 async function findRaplPath() {
   for (const p of RAPL_PATHS) {
@@ -202,29 +220,12 @@ async function findRaplPath() {
   return null;
 }
 
-async function findDramRaplPath() {
-  const bases = [
-    '/sys/class/powercap/intel-rapl:0',
-    '/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0',
-  ];
-  for (const base of bases) {
-    for (let i = 0; i < 5; i++) {
-      try {
-        const name = (await readFile(`${base}:${i}/name`, 'utf-8')).trim();
-        if (name === 'dram') return `${base}:${i}/energy_uj`;
-      } catch { break; }
-    }
-  }
-  return null;
-}
-
-let prevDramEnergy = null;
-
 async function getCpuPower() {
   const now = Date.now();
   try {
-    if (!raplPath) raplPath = await findRaplPath();
-    if (!raplPath) return { cpu_w: null, dram_w: null };
+    if (raplPath === null) raplPath = await findRaplPath() ?? false;
+    if (!raplPath) return null;
+
     const raw = await readFile(raplPath, 'utf-8');
     const energy = parseInt(raw.trim());
 
@@ -236,24 +237,9 @@ async function getCpuPower() {
     }
     prevRaplEnergy = energy;
     prevRaplTime = now;
-
-    // DRAM power
-    if (dramRaplPath === undefined) dramRaplPath = await findDramRaplPath();
-    let dram_w = null;
-    if (dramRaplPath) {
-      const dramRaw = await readFile(dramRaplPath, 'utf-8');
-      const dramEnergy = parseInt(dramRaw.trim());
-      if (prevDramEnergy !== null && prevRaplTime !== null) {
-        const dE = dramEnergy - prevDramEnergy;
-        const dt = (now - prevRaplTime) / 1000;
-        if (dt > 0 && dE >= 0) dram_w = Math.round((dE / 1e6 / dt) * 10) / 10;
-      }
-      prevDramEnergy = dramEnergy;
-    }
-
-    return { cpu_w, dram_w };
+    return cpu_w;
   } catch {
-    return { cpu_w: null, dram_w: null };
+    return null;
   }
 }
 
@@ -342,18 +328,19 @@ export async function collectMetrics() {
     getLoadAvg(),    // 7
     getUptime(),     // 8
     getDiskIO(),     // 9
+    getCpuFan(),     // 10
   ]);
 
   const v = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
 
-  const cpuResult   = v(0);
-  const powerResult = v(5) ?? { cpu_w: null, dram_w: null };
-  const gpus        = v(3) ?? [];
-  const gpuPower    = gpus.reduce((s, g) => s + (g.power_draw ?? 0), 0);
-  const totalPower  = (powerResult.cpu_w ?? 0) + (powerResult.dram_w ?? 0) + gpuPower;
+  const cpuResult = v(0);
+  const cpuW      = v(5);
+  const gpus      = v(3) ?? [];
+  const gpuPower  = gpus.reduce((s, g) => s + (g.power_draw ?? 0), 0);
+  const totalPower = (cpuW ?? 0) + gpuPower;
 
   return {
-    cpu:      { usage: cpuResult?.usage ?? null, cores: cpuResult?.cores ?? [], temp: v(4), power: powerResult.cpu_w },
+    cpu:      { usage: cpuResult?.usage ?? null, cores: cpuResult?.cores ?? [], temp: v(4), power: cpuW, fan_rpm: v(10) },
     gpu:      gpus,
     ram:      v(1),
     network:  v(2) ?? { rx_sec: 0, tx_sec: 0, iface: 'unknown' },
@@ -364,8 +351,7 @@ export async function collectMetrics() {
     uptime:   v(8),
     power: {
       total: totalPower > 0 ? Math.round(totalPower * 10) / 10 : null,
-      cpu:   powerResult.cpu_w,
-      dram:  powerResult.dram_w,
+      cpu:   cpuW,
       gpu:   gpuPower > 0 ? Math.round(gpuPower * 10) / 10 : null,
     },
     timestamp: Date.now(),

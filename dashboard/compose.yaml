@@ -13,14 +13,13 @@ services:
       - ALLOWED_IPS=${ALLOWED_IPS:-}
       - NODE_ENV=production
     volumes:
-      - /sys:/sys:ro                                    # CPU temp, RAPL power sensors
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # Docker stats & logs
-      - ./data:/app/data                               # Persistent metrics history
-      - ../proxy/data/logs:/npm-logs:ro                # NPM access logs for web tracking
+      - /sys:/sys:ro                                                                           # CPU temp, hwmon fan sensors
+      - /sys/devices/virtual/powercap/intel-rapl:/host-rapl:ro                               # RAPL at non-masked path (Docker masks /sys/devices/virtual/powercap)
+      - /var/run/docker.sock:/var/run/docker.sock:ro                                          # Docker stats & logs
+      - ./data:/app/data                                                                      # Persistent metrics history
+      - ../proxy/data/logs:/npm-logs:ro                                                       # NPM access logs for web tracking
     cap_add:
-      - SYS_RAWIO                                      # Intel RAPL powercap access
-    security_opt:
-      - no-new-privileges:true
+      - SYS_RAWIO   # Intel RAPL powercap access
     deploy:
       resources:
         reservations:

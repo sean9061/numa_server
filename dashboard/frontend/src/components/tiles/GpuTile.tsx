@@ -1,6 +1,7 @@
 import { useStore } from '../../store/useStore';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
+import { FanIcon } from '../FanIcon';
 import { statusColor, barColor, fmtMB, downsample } from '../../utils';
 import { GPU_COLORS, HIST_DISPLAY } from '../../constants';
 import type { GpuData } from '../../types';
@@ -80,8 +81,8 @@ function GpuSection({ index, g, usageData, vramData, showDivider }: {
           )}
         </div>
 
-        {/* Temp + power */}
-        <div style={{ marginTop: 4, flexShrink: 0, display: 'flex', gap: 10, alignItems: 'center' }}>
+        {/* Temp + power + fan */}
+        <div style={{ marginTop: 4, flexShrink: 0, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {g.temp != null && (
             <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
               <span style={{ color: 'var(--text)', fontWeight: 500 }}>{g.temp}</span>°C
@@ -91,6 +92,12 @@ function GpuSection({ index, g, usageData, vramData, showDivider }: {
             <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>
               ⚡ <span style={{ color: 'var(--text)', fontWeight: 500 }}>{g.power_draw.toFixed(0)}</span>
               {g.power_limit != null && <> / {g.power_limit.toFixed(0)}</>} W
+            </span>
+          )}
+          {g.fan_pct != null && (
+            <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <FanIcon pct={g.fan_pct} size={13} />
+              <span style={{ color: 'var(--text)', fontWeight: 500 }}>{g.fan_pct.toFixed(0)}</span>%
             </span>
           )}
         </div>
