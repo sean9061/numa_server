@@ -4,12 +4,11 @@ interface Props {
   total: (number | null)[];
   cpu:   (number | null)[];
   gpu:   (number | null)[];
-  dram:  (number | null)[];
 }
 
-export function PowerChart({ total, cpu, gpu, dram }: Props) {
+export function PowerChart({ total, cpu, gpu }: Props) {
   const chartData = total.map((v, i) => ({
-    i, total: v, cpu: cpu[i], gpu: gpu[i], dram: dram[i],
+    i, total: v, cpu: cpu[i], gpu: gpu[i],
   }));
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -19,7 +18,6 @@ export function PowerChart({ total, cpu, gpu, dram }: Props) {
         <Line type="monotone" dataKey="total" stroke="#e0e0e0" strokeWidth={2}   dot={false} isAnimationActive={false} connectNulls />
         <Line type="monotone" dataKey="cpu"   stroke="#3b82f6" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
         <Line type="monotone" dataKey="gpu"   stroke="#f59e0b" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
-        <Line type="monotone" dataKey="dram"  stroke="#818cf8" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
       </LineChart>
     </ResponsiveContainer>
   );

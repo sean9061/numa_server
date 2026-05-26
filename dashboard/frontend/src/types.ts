@@ -52,7 +52,6 @@ export interface Metrics {
     total?: number;
     cpu?: number;
     gpu?: number;
-    dram?: number;
   };
   load?: {
     m1?: number;
@@ -80,9 +79,8 @@ export interface HistoryEntry {
   disk_rx: number | null;
   disk_wx: number | null;
   pow_total: number | null;
-  pow_cpu: number | null;
-  pow_gpu: number | null;
-  pow_dram: number | null;
+  pow_cpu:   number | null;
+  pow_gpu:   number | null;
 }
 
 export interface ContainerInfo {

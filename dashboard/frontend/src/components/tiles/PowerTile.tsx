@@ -16,12 +16,10 @@ export function PowerTile() {
   const total = downsample(slice.map(e => e.pow_total), HIST_DISPLAY);
   const cpu   = downsample(slice.map(e => e.pow_cpu),   HIST_DISPLAY);
   const gpu   = downsample(slice.map(e => e.pow_gpu),   HIST_DISPLAY);
-  const dram  = downsample(slice.map(e => e.pow_dram),  HIST_DISPLAY);
 
   const breakdown = [
-    { color: '#3b82f6', label: 'CPU',  value: fmt(power?.cpu)  },
-    { color: '#f59e0b', label: 'GPU',  value: fmt(power?.gpu)  },
-    { color: '#818cf8', label: 'DRAM', value: fmt(power?.dram) },
+    { color: '#3b82f6', label: 'CPU', value: fmt(power?.cpu) },
+    { color: '#f59e0b', label: 'GPU', value: fmt(power?.gpu) },
   ];
 
   return (
@@ -50,7 +48,7 @@ export function PowerTile() {
 
       {/* Chart */}
       <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
-        <PowerChart total={total} cpu={cpu} gpu={gpu} dram={dram} />
+        <PowerChart total={total} cpu={cpu} gpu={gpu} />
       </div>
 
       {/* Breakdown */}

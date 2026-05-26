@@ -18,10 +18,9 @@ function buildHistoryEntry(d: Metrics): HistoryEntry {
     net_tx:    d.network?.tx_sec ?? null,
     disk_rx:   d.disk_io?.rx_sec ?? null,
     disk_wx:   d.disk_io?.wx_sec ?? null,
-    pow_total: d.power?.total    ?? null,
-    pow_cpu:   d.power?.cpu      ?? null,
-    pow_gpu:   d.power?.gpu      ?? null,
-    pow_dram:  d.power?.dram     ?? null,
+    pow_total: d.power?.total ?? null,
+    pow_cpu:   d.power?.cpu   ?? null,
+    pow_gpu:   d.power?.gpu   ?? null,
   };
 }
 
