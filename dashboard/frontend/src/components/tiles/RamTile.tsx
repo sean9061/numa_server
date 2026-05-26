@@ -9,9 +9,10 @@ export function RamTile() {
   const history    = useStore(s => s.history);
   const timeWindow = useStore(s => s.timeWindow);
 
-  const ram  = metrics?.ram;
-  const pct  = ram?.percent ?? 0;
-  const data = downsample(history.slice(-timeWindow).map(e => e.ram), HIST_DISPLAY);
+  const ram   = metrics?.ram;
+  const pct   = ram?.percent ?? 0;
+  const data  = downsample(history.slice(-timeWindow).map(e => e.ram), HIST_DISPLAY);
+  const dramW = metrics?.power?.dram;
 
   const swapPct = ram?.swap_total
     ? Math.round(((ram.swap_used ?? 0) / ram.swap_total) * 100)
@@ -28,6 +29,9 @@ export function RamTile() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <CardLabel>RAM</CardLabel>
+        {dramW != null && (
+          <span style={{ fontSize: 11, color: 'var(--dim)', fontVariantNumeric: 'tabular-nums' }}>⚡ {dramW}W</span>
+        )}
       </div>
 
       {/* Hero */}
