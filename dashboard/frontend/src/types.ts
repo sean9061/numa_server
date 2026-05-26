@@ -7,6 +7,7 @@ export interface GpuData {
   power_limit?: number;
   vram_used?: number;
   vram_total?: number;
+  fan_pct?: number | null;
 }
 
 export interface Metrics {
@@ -17,6 +18,7 @@ export interface Metrics {
     temp?: number;
     power?: number;
     cores?: number[];
+    fan_rpm?: number | null;
   };
   gpu?: GpuData[];
   ram?: {
