@@ -202,10 +202,15 @@ async function getCpuTemp() {
 }
 
 // CPU power via Intel RAPL
+// /host-rapl is mounted from /sys/devices/virtual/powercap/intel-rapl on the host.
+// Docker masks /sys/devices/virtual/powercap inside containers with tmpfs;
+// mounting to a different path bypasses that mask.
 const RAPL_PATHS = [
+  '/host-rapl/intel-rapl:0/energy_uj',
   '/sys/class/powercap/intel-rapl:0/energy_uj',
   '/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_uj',
 ];
+
 let raplPath = null;
 let dramRaplPath = undefined; // undefined = not yet searched, null = not found
 
@@ -218,6 +223,7 @@ async function findRaplPath() {
 
 async function findDramRaplPath() {
   const bases = [
+    '/host-rapl/intel-rapl:0',
     '/sys/class/powercap/intel-rapl:0',
     '/sys/devices/virtual/powercap/intel-rapl/intel-rapl:0',
   ];
@@ -237,8 +243,9 @@ let prevDramEnergy = null;
 async function getCpuPower() {
   const now = Date.now();
   try {
-    if (!raplPath) raplPath = await findRaplPath();
+    if (raplPath === null) raplPath = await findRaplPath() ?? false;
     if (!raplPath) return { cpu_w: null, dram_w: null };
+
     const raw = await readFile(raplPath, 'utf-8');
     const energy = parseInt(raw.trim());
 
@@ -251,13 +258,12 @@ async function getCpuPower() {
     prevRaplEnergy = energy;
     prevRaplTime = now;
 
-    // DRAM power
     if (dramRaplPath === undefined) dramRaplPath = await findDramRaplPath();
     let dram_w = null;
     if (dramRaplPath) {
       const dramRaw = await readFile(dramRaplPath, 'utf-8');
       const dramEnergy = parseInt(dramRaw.trim());
-      if (prevDramEnergy !== null && prevRaplTime !== null) {
+      if (prevDramEnergy !== null) {
         const dE = dramEnergy - prevDramEnergy;
         const dt = (now - prevRaplTime) / 1000;
         if (dt > 0 && dE >= 0) dram_w = Math.round((dE / 1e6 / dt) * 10) / 10;
