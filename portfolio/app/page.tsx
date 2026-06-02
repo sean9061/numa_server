@@ -5,13 +5,14 @@ import { TechStackCard } from "@/components/tech-stack-card";
 import { ProjectCard } from "@/components/project-card";
 import { InterestsCard } from "@/components/interests-card";
 import { PhotoCard } from "@/components/photo-card";
+import { ThemeCard } from "@/components/theme-card";
 import { LoadingProvider } from "@/components/ui/loading-provider";
 import { siteConfig } from "@/data/config";
 
 export default function Home() {
   return (
     <LoadingProvider>
-    <main className="min-h-screen bg-neutral-50 p-4 text-neutral-900 md:p-8 dark:bg-neutral-950 dark:text-neutral-50">
+    <main className="min-h-screen bg-white p-4 text-blue-950 md:p-8 dark:bg-neutral-950 dark:text-neutral-50">
       <div className="mx-auto max-w-7xl grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-4">
 
         {/* Row 1 & 2: Tetris Layout */}
@@ -34,14 +35,19 @@ export default function Home() {
         {/* Interests: Row 3 (2x1) */}
         <InterestsCard className="col-span-1 md:col-span-2 lg:col-span-2 aspect-auto md:aspect-[2/1]" />
 
-        {/* Contact: Last (1x1) */}
+        {/* Contact: (1x1) */}
         <ContactCard className="col-span-1 aspect-square" />
+
+        {/* Theme toggle: lg の Row 3 空き列に小カードを左上配置 */}
+        <div className="col-span-1 flex items-start justify-start">
+          <ThemeCard />
+        </div>
       </div>
 
-      <div className="my-10 w-full border-t border-dashed border-neutral-200 dark:border-neutral-800" />
+      <div className="my-10 w-full border-t border-dashed border-blue-100 dark:border-neutral-800" />
 
       <div className="mx-auto max-w-7xl">
-        <h2 className="mb-8 text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+        <h2 className="mb-8 text-2xl font-bold tracking-tight text-blue-950 dark:text-neutral-100">
           Projects gallery
         </h2>
 

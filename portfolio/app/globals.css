@@ -4,6 +4,8 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --shadow-card:       0 2px 10px rgba(59, 130, 246, 0.14), 0 1px 4px rgba(59, 130, 246, 0.08);
+  --shadow-card-hover: 0 4px 18px rgba(59, 130, 246, 0.20), 0 2px 6px rgba(59, 130, 246, 0.10);
 }
 
 @theme inline {
@@ -16,6 +18,8 @@
 .dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+  --shadow-card:       0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 body {
@@ -24,11 +28,17 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+@utility shadow-card {
+  box-shadow: var(--shadow-card);
+}
+@utility shadow-card-hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
 *, *::before, *::after {
   cursor: none !important;
 }
 
-/* ネイティブスクロールバーを非表示 (カスタムコンポーネントを使用) */
 @media (min-width: 640px) {
   html {
     scrollbar-width: none;

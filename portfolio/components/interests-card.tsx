@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { siteConfig } from "@/data/config";
 import { BentoCard } from "@/components/ui/bento-card";
+import { useTheme } from "@/components/ui/theme-provider";
 import { motion } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -12,8 +13,10 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export function InterestsCard({ className }: { className?: string }) {
-    // active はマウスホバーとタップ両方で使う
+    const { theme } = useTheme();
     const [active, setActive] = useState<string | null>(null);
+    const brightDefault = theme === "dark" ? "blur(4px) brightness(0.5)" : "blur(4px) brightness(0.82)";
+    const brightActive  = theme === "dark" ? "blur(0px) brightness(0.7)" : "blur(0px) brightness(1.0)";
 
     return (
         <BentoCard title="Hobbies" className={className} delay={1.2}>
@@ -42,7 +45,7 @@ export function InterestsCard({ className }: { className?: string }) {
                                     width: "400px",
                                     transform: "translateX(-50%)",
                                     backgroundImage: `url(${hobby.image})`,
-                                    filter: active === hobby.name ? "blur(0px) brightness(0.7)" : "blur(4px) brightness(0.5)",
+                                    filter: active === hobby.name ? brightActive : brightDefault,
                                     transition: "filter 0.5s ease",
                                     willChange: "filter",
                                 }}

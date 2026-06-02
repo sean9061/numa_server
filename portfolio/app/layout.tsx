@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { CustomCursor } from "@/components/ui/custom-cursor";
 import { CustomScrollbar } from "@/components/ui/custom-scrollbar";
+import { ThemeProvider } from "@/components/ui/theme-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,13 +31,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
+      <head>
+        {/* Anti-FOUC: apply theme class before first paint */}
+        <script dangerouslySetInnerHTML={{ __html:
+          `(function(){var t=sessionStorage.getItem('theme');` +
+          `var dark=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);` +
+          `document.documentElement.classList.toggle('dark',dark)})()` }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased cursor-none`}
       >
-        <CustomCursor />
-        <CustomScrollbar />
-        {children}
+        <ThemeProvider>
+          <CustomCursor />
+          <CustomScrollbar />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

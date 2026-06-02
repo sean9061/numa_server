@@ -26,9 +26,7 @@ export function BentoCard({ children, className, title, delay = 0 }: BentoCardPr
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Phase 1: each card rises individually after its own delay
         const t1 = setTimeout(() => setPhase(1), delay * 1000);
-        // Phase 2: all cards land simultaneously at SYNC_T
         const t2 = setTimeout(() => setPhase(2), SYNC_T * 1000);
         return () => {
             clearTimeout(t1);
@@ -46,26 +44,25 @@ export function BentoCard({ children, className, title, delay = 0 }: BentoCardPr
     } else if (phase === 1) {
         cssTransition = `transform ${STAGE1_DUR}s linear, opacity 0.25s linear`;
     } else {
-        // spring-like cubic-bezier for landing
         cssTransition = "transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)";
     }
 
     const colorCls = contentVisible
         ? "bg-white dark:bg-neutral-900 border-transparent dark:border-transparent"
-        : "bg-neutral-50 dark:bg-[#111111] border-neutral-200 dark:border-neutral-700";
+        : "bg-neutral-50 dark:bg-[#111111] border-blue-100 dark:border-neutral-700";
 
     return (
         <div
             ref={ref}
             className={cn(
-                "group relative flex flex-col overflow-hidden rounded-3xl p-6 shadow-sm hover:shadow-md border",
+                "group relative flex flex-col overflow-hidden rounded-3xl p-6 shadow-card hover:shadow-card-hover border",
                 colorCls,
                 className
             )}
             style={{
                 transform: `translateY(${yVal}px)`,
                 opacity,
-                transition: cssTransition + ", background-color 0.5s ease, border-color 0.5s ease",
+                transition: cssTransition + ", background-color 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease",
             }}
         >
             {/* Border sweep */}
@@ -97,7 +94,7 @@ export function BentoCard({ children, className, title, delay = 0 }: BentoCardPr
                 />
             </div>
 
-            {/* Content — all cards reveal simultaneously */}
+            {/* Content */}
             <motion.div
                 className="relative z-10 flex flex-col flex-1"
                 initial={{ opacity: 0 }}
