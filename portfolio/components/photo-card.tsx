@@ -2,6 +2,7 @@
 
 import { siteConfig } from "@/data/config";
 import { BentoCard } from "@/components/ui/bento-card";
+import { useTheme } from "@/components/ui/theme-provider";
 import { useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
@@ -113,6 +114,8 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function PhotoCard({ className }: { className?: string }) {
+    const { theme } = useTheme();
+    const dark = theme === "dark";
     const [photos] = useState(() => shuffle(siteConfig.photos));
     const [current, setCurrent] = useState(0);
     const [modalIndex, setModalIndex] = useState<number | null>(null);
@@ -145,8 +148,8 @@ export function PhotoCard({ className }: { className?: string }) {
                         </motion.div>
                     </AnimatePresence>
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                    <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 40px 10px rgba(0,0,0,0.5)" }} />
+                    <div className={`absolute inset-0 bg-gradient-to-t ${dark ? "from-black/70" : "from-black/35"} via-transparent to-transparent`} />
+                    <div className="absolute inset-0" style={{ boxShadow: `inset 0 0 40px 10px rgba(0,0,0,${dark ? 0.5 : 0.18})` }} />
 
                     <div className="absolute bottom-0 left-0 right-0 p-4">
                         <p className="font-semibold text-white">{photo.title}</p>
