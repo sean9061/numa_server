@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTheme } from "./theme-provider";
 
 const INSET   = 26;
 const THIN_R  = 1;
@@ -37,11 +38,12 @@ function buildPath(totalH: number, thumbY: number, thumbH: number): string {
 }
 
 export function CustomScrollbar() {
+    const { theme } = useTheme();
+    const dark = theme === "dark";
     const [isTouch, setIsTouch] = useState(false);
     const [thumbH, setThumbH] = useState(0);
     const [thumbY, setThumbY] = useState(0);
     const [winH, setWinH]     = useState(0);
-    const [dark, setDark]     = useState(false);
     const [dragging, setDragging] = useState(false);
 
     // ドラッグ中の基準点
@@ -68,12 +70,6 @@ export function CustomScrollbar() {
     useEffect(() => {
         const updateIsTouch = () => setIsTouch(window.innerWidth < 640);
         updateIsTouch();
-
-        setDark(document.documentElement.classList.contains("dark"));
-        const mq = window.matchMedia("(prefers-color-scheme: dark)");
-        const onMq = () => setDark(document.documentElement.classList.contains("dark"));
-        mq.addEventListener("change", onMq);
-
         window.addEventListener("scroll", updateThumb, { passive: true });
         window.addEventListener("resize", updateThumb);
         window.addEventListener("resize", updateIsTouch);
@@ -82,7 +78,6 @@ export function CustomScrollbar() {
             window.removeEventListener("scroll", updateThumb);
             window.removeEventListener("resize", updateThumb);
             window.removeEventListener("resize", updateIsTouch);
-            mq.removeEventListener("change", onMq);
         };
     }, []);
 

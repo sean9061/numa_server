@@ -2,6 +2,7 @@
 
 import { siteConfig } from "@/data/config";
 import { BentoCard } from "@/components/ui/bento-card";
+import { useTheme } from "@/components/ui/theme-provider";
 import { MapPin, Building2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,6 +16,8 @@ const themeColors: Record<string, string> = {
 };
 
 export function ProfileCard({ className }: { className?: string }) {
+    const { theme } = useTheme();
+    const dark = theme === "dark";
     const [hovered, setHovered] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(false);
 
@@ -77,7 +80,9 @@ export function ProfileCard({ className }: { className?: string }) {
                 {/* Right: social icons */}
                 <div className="flex flex-col items-end justify-between gap-3 py-1">
                     {siteConfig.socials.map((social) => {
-                        const color = themeColors[social.name] ?? "#888888";
+                        const baseColor = themeColors[social.name] ?? "#888888";
+                        // X の #e7e9ea はライト背景で消えるため濃い色に差し替え
+                        const color = !dark && social.name === "X" ? "#1a1a1a" : baseColor;
                         const isHovered = hovered === social.name;
                         return (
                             <Link
@@ -90,10 +95,12 @@ export function ProfileCard({ className }: { className?: string }) {
                                 style={{
                                     width: isMobile ? "52px" : "130px",
                                     background: isHovered
-                                        ? `linear-gradient(to top, ${color}45 0%, ${color}10 50%, transparent 100%)`
-                                        : `linear-gradient(to top, ${color}22 0%, ${color}05 50%, transparent 100%)`,
-                                    boxShadow: isHovered ? `inset 0 -1px 5px 0 ${color}50` : `inset 0 -1px 6px 0 ${color}28`,
-                                    color: isHovered ? color : "rgba(160,160,160,0.9)",
+                                        ? `linear-gradient(to top, ${color}${dark ? "45" : "55"} 0%, ${color}${dark ? "10" : "18"} 50%, transparent 100%)`
+                                        : `linear-gradient(to top, ${color}${dark ? "22" : "38"} 0%, ${color}${dark ? "05" : "10"} 50%, transparent 100%)`,
+                                    boxShadow: isHovered
+                                        ? `inset 0 -1px 5px 0 ${color}${dark ? "50" : "70"}`
+                                        : `inset 0 -1px 6px 0 ${color}${dark ? "28" : "50"}`,
+                                    color: isHovered ? color : dark ? "rgba(160,160,160,0.9)" : "rgba(80,80,80,0.85)",
                                 }}
                                 onMouseEnter={() => setHovered(social.name)}
                                 onMouseLeave={() => setHovered(null)}

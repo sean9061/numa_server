@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { useTheme } from "./theme-provider";
 
 // Circle: 4 cubic beziers, M at (10,0)
 // fmt: M x y  C x1 y1 x2 y2 x y  (×4)
@@ -38,6 +39,7 @@ function blendPath(t: number): string {
 }
 
 export function CustomCursor() {
+    const { theme } = useTheme();
     const [isTouch, setIsTouch] = useState(false);
 
     useEffect(() => {
@@ -140,8 +142,10 @@ export function CustomCursor() {
         >
             <motion.path
                 d={pathD}
-                fill="rgba(255, 255, 255, 0.3)"
-                filter="drop-shadow(0px 0px 10px rgba(0, 0, 0, 0.8))"
+                fill={theme === "dark" ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.15)"}
+                filter={theme === "dark"
+                    ? "drop-shadow(0px 0px 10px rgba(0, 0, 0, 0.8))"
+                    : "drop-shadow(0px 0px 8px rgba(0, 0, 0, 0.25))"}
             />
         </motion.svg>
     );

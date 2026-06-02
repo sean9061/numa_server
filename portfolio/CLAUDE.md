@@ -42,6 +42,29 @@ This is a **Next.js 16 portfolio site** using the App Router with React 19, Type
 | `interests-card.tsx` | Expand-on-hover layout using Framer Motion `layout` animations |
 | `project-card.tsx` | Supports GLTF 3D models, YouTube embeds, or static images as media |
 | `ui/gltf-viewer.tsx` | Three.js 3D model viewer via React Three Fiber; models go in `/public/models/` |
+| `ui/custom-cursor.tsx` | SVG cursor that morphs circle→teardrop and rotates toward movement direction; hidden on touch devices |
+| `ui/custom-scrollbar.tsx` | SVG scrollbar with blob-shaped thumb; hidden on mobile (`< 640px`); supports drag and click-to-jump |
+
+### Entry Animation System (`ui/loading-provider.tsx`)
+
+`LoadingProvider` controls the staggered card entry sequence via shared timing constants:
+
+```
+STAGE1_DUR = 0.6s  — each card rises individually (linear)
+LAST_DELAY = 1.2s  — delay of the last card
+SYNC_T     = 1.8s  — moment all cards land simultaneously (spring bezier)
+CONTENT_REVEAL_MS  — card content fades in after all cards land
+```
+
+`BentoCard` reads `useContentVisible()` to reveal its content in sync. Do not change these constants without coordinating both files.
+
+### Theme System
+
+`globals.css` uses Tailwind v4 **class-based** dark mode: `@variant dark (&:where(.dark, .dark *))`.
+
+`layout.tsx` currently hardcodes `<html className="dark">`. To add a theme toggle, switch to a React state/context that adds/removes the `dark` class on `<html>`. The CSS variables `--background` / `--foreground` in `globals.css` handle the actual color switching.
+
+`globals.css` also sets `cursor: none !important` globally; `(pointer: coarse)` restores `cursor: auto` on touch.
 
 ### 3D Models
 
