@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTheme } from "@/components/ui/theme-provider";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -124,6 +125,8 @@ function ActivityModal({ activity, onClose }: { activity: Activity; onClose: () 
 }
 
 export function ActivitiesCard({ className }: { className?: string }) {
+    const { theme } = useTheme();
+    const dark = theme === "dark";
     const [selected, setSelected] = useState<Activity | null>(null);
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -171,8 +174,11 @@ export function ActivitiesCard({ className }: { className?: string }) {
                                         style={{ filter: hoveredIndex === index ? "blur(0px)" : "blur(0.5px)" }}
                                     />
                                     <div
-                                        className="absolute inset-0 bg-black/20 transition-opacity duration-200"
-                                        style={{ opacity: hoveredIndex === index ? 0 : 1 }}
+                                        className="absolute inset-0 transition-opacity duration-200"
+                                        style={{
+                                            background: dark ? "rgba(0,0,0,0.20)" : "rgba(0,0,0,0.06)",
+                                            opacity: hoveredIndex === index ? 0 : 1,
+                                        }}
                                     />
                                 </div>
                             )}
