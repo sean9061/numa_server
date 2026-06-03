@@ -1,26 +1,29 @@
 import { useEffect } from 'react';
 import { usePanZoom } from '../../hooks/usePanZoom';
-import { useStore } from '../../store/useStore';
-import { ServiceCard } from '../services/ServiceCard';
-import { LogDrawer }   from '../services/LogDrawer';
-import { CANVAS_W } from '../../constants';
+import { LogDrawer }  from '../services/LogDrawer';
+import { FlowDiagram } from '../services/FlowDiagram';
+import { CANVAS_W, FLOW_H } from '../../constants';
 
 interface Props {
   visible: boolean;
 }
 
 export function ServicesPanel({ visible }: Props) {
-  const { vpRef, canvasRef, fitServer } = usePanZoom(visible);
-  const containers     = useStore(s => s.containers);
-  const containerStats = useStore(s => s.containerStats);
-  const metrics        = useStore(s => s.metrics);
-
-  const portfolioRpm   = metrics?.portfolio_rpm ?? null;
-  const portfolioTotal = metrics?.portfolio_total ?? null;
+  const { vpRef, canvasRef, goto } = usePanZoom(visible);
 
   useEffect(() => {
-    if (visible) requestAnimationFrame(() => fitServer(false));
-  }, [visible, fitServer]);
+    if (!visible) return;
+    requestAnimationFrame(() => {
+      const vp = vpRef.current;
+      if (!vp) return;
+      const vw = vp.clientWidth;
+      const vh = vp.clientHeight;
+      const sW = (vw - 40) / CANVAS_W;
+      const sH = (vh - 60) / FLOW_H;
+      const s  = Math.min(1.0, sW, sH, 1.15);
+      goto(CANVAS_W / 2, FLOW_H / 2, Math.max(0.18, s), false);
+    });
+  }, [visible, goto, vpRef]);
 
   return (
     <div
@@ -34,26 +37,7 @@ export function ServicesPanel({ visible }: Props) {
       <div ref={vpRef} className="canvas-viewport" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         <div ref={canvasRef} className="canvas-layer" style={{ width: CANVAS_W }}>
           <div className="canvas-bg" />
-          <div style={{ position: 'absolute', left: 0, top: 0, width: CANVAS_W, padding: 6, zIndex: 1 }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))',
-              gap: 6,
-            }}>
-              {containers.length === 0
-                ? <div style={{ color: 'var(--dim)', fontSize: 12, padding: 8 }}>Loading...</div>
-                : containers.map(c => (
-                  <ServiceCard
-                    key={c.name}
-                    container={c}
-                    stats={containerStats[c.name]}
-                    portfolioRpm={portfolioRpm}
-                    portfolioTotal={portfolioTotal}
-                  />
-                ))
-              }
-            </div>
-          </div>
+          <FlowDiagram />
         </div>
       </div>
       <LogDrawer />

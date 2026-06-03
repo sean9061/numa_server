@@ -18,6 +18,7 @@ export const TILES = {
 } as const;
 
 export const SERVER_H = 252 + 296; // 548
+export const FLOW_H   = 660;       // services flow diagram total height
 
 export const SERVICE_LINKS: Record<string, string> = {
   'portfolio-container':  'https://s3an.dev',
