@@ -5,32 +5,33 @@ import type { ContainerInfo, ContainerStats } from '../../types';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 
-const CX       = CANVAS_W / 2; // 678
-const NODE_W   = 220;
-const NODE_H   = 130;
-const VNODE_W  = 120;
-const VNODE_H  = 32;
+const NODE_W  = 220;
+const NODE_H  = 130;
 
-const Y_INTERNET = 22;
-const Y_NPM      = 72;
-const Y_ROW      = 296;
-const Y_OLLAMA   = 484;
+// Column X positions (left edge)
+const X_NPM      = 100;
+const X_SERVICES = 430;
+const X_OLLAMA   = 770;
 
-// Node center X coords
-const X_NPM       = CX;
-const X_PORTFOLIO = CX - 300;
-const X_WEBUI     = CX;
-const X_DASHBOARD = CX + 300;
-const X_OLLAMA    = CX;
+// Row Y positions — 3 service nodes evenly spaced within FLOW_H
+const GAP         = Math.round((FLOW_H - 3 * NODE_H) / 4);
+const Y_PORTFOLIO = GAP;
+const Y_WEBUI     = GAP + NODE_H + GAP;
+const Y_DASHBOARD = GAP + NODE_H + GAP + NODE_H + GAP;
 
-// Anchor helpers (center-top / center-bottom of each node)
+// NPM vertically centered between portfolio and dashboard
+const CY_MID = (Y_PORTFOLIO + NODE_H / 2 + Y_DASHBOARD + NODE_H / 2) / 2;
+const Y_NPM  = Math.round(CY_MID - NODE_H / 2);
+
+// Anchor helpers (right-center / left-center)
 const anchors = {
-  internet: { bx: CX, by: Y_INTERNET + VNODE_H },
-  npm:      { tx: X_NPM,       ty: Y_NPM,            bx: X_NPM,       by: Y_NPM + NODE_H },
-  portfolio:{ tx: X_PORTFOLIO, ty: Y_ROW },
-  webui:    { tx: X_WEBUI,     ty: Y_ROW,             bx: X_WEBUI,     by: Y_ROW + NODE_H },
-  dashboard:{ tx: X_DASHBOARD, ty: Y_ROW },
-  ollama:   { tx: X_OLLAMA,    ty: Y_OLLAMA },
+  npm:      { lx: X_NPM,                  ly: Y_NPM      + NODE_H / 2,
+              rx: X_NPM      + NODE_W,     ry: Y_NPM      + NODE_H / 2 },
+  portfolio:{ lx: X_SERVICES,             ly: Y_PORTFOLIO + NODE_H / 2 },
+  webui:    { lx: X_SERVICES,             ly: Y_WEBUI    + NODE_H / 2,
+              rx: X_SERVICES + NODE_W,     ry: Y_WEBUI    + NODE_H / 2 },
+  dashboard:{ lx: X_SERVICES,             ly: Y_DASHBOARD + NODE_H / 2 },
+  ollama:   { lx: X_OLLAMA,               ly: Y_WEBUI    + NODE_H / 2 },
 };
 
 // ── Topology nodes ────────────────────────────────────────────────────────────
@@ -39,40 +40,34 @@ interface TopoNode {
   id: string;
   label: string;
   x: number; y: number;
-  virtual?: true;
   containerName?: string;
   imageMatch?: string;
 }
 
 const TOPO_NODES: TopoNode[] = [
   {
-    id: 'internet', label: 'Internet',
-    x: CX - VNODE_W / 2, y: Y_INTERNET,
-    virtual: true,
-  },
-  {
     id: 'npm', label: 'proxy-app-1',
-    x: X_NPM - NODE_W / 2, y: Y_NPM,
+    x: X_NPM, y: Y_NPM,
     containerName: 'proxy-app-1', imageMatch: 'nginx-proxy-manager',
   },
   {
     id: 'portfolio', label: 'portfolio-container',
-    x: X_PORTFOLIO - NODE_W / 2, y: Y_ROW,
+    x: X_SERVICES, y: Y_PORTFOLIO,
     containerName: 'portfolio-container',
   },
   {
     id: 'webui', label: 'open-webui',
-    x: X_WEBUI - NODE_W / 2, y: Y_ROW,
+    x: X_SERVICES, y: Y_WEBUI,
     containerName: 'open-webui',
   },
   {
     id: 'dashboard', label: 'dashboard',
-    x: X_DASHBOARD - NODE_W / 2, y: Y_ROW,
+    x: X_SERVICES, y: Y_DASHBOARD,
     containerName: 'dashboard',
   },
   {
     id: 'ollama', label: 'ollama',
-    x: X_OLLAMA - NODE_W / 2, y: Y_OLLAMA,
+    x: X_OLLAMA, y: Y_WEBUI,
     containerName: 'ollama',
   },
 ];
@@ -86,20 +81,18 @@ interface Edge {
 }
 
 const EDGES: Edge[] = [
-  { from: 'internet', to: 'npm' },
   { from: 'npm', to: 'portfolio',  network: 'proxy_net' },
   { from: 'npm', to: 'webui',      network: 'proxy_net' },
   { from: 'npm', to: 'dashboard',  network: 'proxy_net' },
   { from: 'webui', to: 'ollama',   network: 'ollama_net' },
 ];
 
-// ── Helper: match container to topology node ───────────────────────────────────
+// ── Helper ────────────────────────────────────────────────────────────────────
 
 function resolveContainer(
   node: TopoNode,
   containers: ContainerInfo[],
 ): ContainerInfo | undefined {
-  if (!node.containerName) return undefined;
   return (
     containers.find(c => c.name === node.containerName) ??
     (node.imageMatch
@@ -108,14 +101,13 @@ function resolveContainer(
   );
 }
 
-// ── Edge SVG path ─────────────────────────────────────────────────────────────
+// ── Edge SVG path (horizontal S-curve) ────────────────────────────────────────
 
 function edgePath(from: keyof typeof anchors, to: keyof typeof anchors): string {
-  const s = anchors[from] as { bx: number; by: number };
-  const t = anchors[to]   as { tx: number; ty: number };
-  const my = (s.by + t.ty) / 2;
-  // Cubic bezier: both control points at vertical midpoint (works for straight vertical too)
-  return `M ${s.bx} ${s.by} C ${s.bx} ${my} ${t.tx} ${my} ${t.tx} ${t.ty}`;
+  const s = anchors[from] as { rx: number; ry: number };
+  const t = anchors[to]   as { lx: number; ly: number };
+  const mx = (s.rx + t.lx) / 2;
+  return `M ${s.rx} ${s.ry} C ${mx} ${s.ry} ${mx} ${t.ly} ${t.lx} ${t.ly}`;
 }
 
 // ── FlowDiagram ───────────────────────────────────────────────────────────────
@@ -127,19 +119,31 @@ export function FlowDiagram() {
 
   const portfolioRpm = metrics?.portfolio_rpm ?? null;
 
-  // Build id → container lookup
   const resolved = new Map<string, ContainerInfo | undefined>(
     TOPO_NODES.map(n => [n.id, resolveContainer(n, containers)])
   );
 
+  function isRunning(id: string): boolean {
+    return resolved.get(id)?.state === 'running';
+  }
+
+  // Active = both ends running AND actual traffic signal present
   function isEdgeActive(from: keyof typeof anchors, to: keyof typeof anchors): boolean {
-    if (from === 'internet') {
-      // Active as long as NPM is running
-      const npm = resolved.get('npm');
-      return npm?.state === 'running';
+    if (!isRunning(from as string) || !isRunning(to as string)) return false;
+
+    if (from === 'npm' && to === 'portfolio') {
+      return (metrics?.portfolio_rpm ?? 0) > 0;
     }
-    return resolved.get(from)?.state === 'running' &&
-           resolved.get(to)?.state   === 'running';
+    if (from === 'npm' && to === 'webui') {
+      return (containerStats['open-webui']?.cpu ?? 0) > 1;
+    }
+    if (from === 'npm' && to === 'dashboard') {
+      return (containerStats['dashboard']?.cpu ?? 0) > 0.5;
+    }
+    if (from === 'webui' && to === 'ollama') {
+      return (containerStats['ollama']?.cpu ?? 0) > 2;
+    }
+    return false;
   }
 
   return (
@@ -164,25 +168,22 @@ export function FlowDiagram() {
           const d      = edgePath(edge.from, edge.to);
           return (
             <g key={i}>
-              {/* Inactive shadow */}
               <path
                 d={d}
                 fill="none"
                 stroke={active ? 'rgba(34,197,94,0.12)' : 'transparent'}
                 strokeWidth={active ? 8 : 0}
               />
-              {/* Main stroke */}
               <path
                 d={d}
                 fill="none"
                 stroke={active ? 'var(--green)' : '#333'}
-                strokeWidth={active ? 1.5 : 1.5}
+                strokeWidth={1.5}
                 strokeDasharray={active ? '7 5' : '4 4'}
                 strokeOpacity={active ? 0.9 : 0.35}
                 markerEnd={active ? 'url(#ah-g)' : 'url(#ah-d)'}
                 className={active ? 'edge-active' : undefined}
               />
-              {/* Network label */}
               {edge.network && (
                 <EdgeLabel d={d} label={edge.network} active={active} />
               )}
@@ -191,11 +192,8 @@ export function FlowDiagram() {
         })}
       </svg>
 
-      {/* Virtual Internet node */}
-      <VirtualNode label="Internet" x={CX - VNODE_W / 2} y={Y_INTERNET} w={VNODE_W} h={VNODE_H} />
-
       {/* Service nodes */}
-      {TOPO_NODES.filter(n => !n.virtual).map(n => {
+      {TOPO_NODES.map(n => {
         const container = resolved.get(n.id);
         const stats: ContainerStats | undefined = container
           ? containerStats[container.name]
@@ -217,25 +215,6 @@ export function FlowDiagram() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function VirtualNode({ label, x, y, w, h }: { label: string; x: number; y: number; w: number; h: number }) {
-  return (
-    <div style={{
-      position: 'absolute', left: x, top: y, width: w, height: h,
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 20,
-      fontSize: 11, fontWeight: 600,
-      color: 'var(--dim)',
-      userSelect: 'none',
-    }}>
-      <span style={{ fontSize: 13 }}>🌐</span>
-      {label}
-    </div>
-  );
-}
-
-// Compute approximate midpoint of a cubic bezier at t=0.5
 function bezierMid(d: string): { x: number; y: number } | null {
   const m = d.match(/M ([\d.]+) ([\d.]+) C ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+)/);
   if (!m) return null;
