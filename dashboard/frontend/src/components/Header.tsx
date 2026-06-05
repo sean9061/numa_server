@@ -18,8 +18,11 @@ export function Header({ onFitServer }: Props) {
   const wsStatus                  = useStore(s => s.wsStatus);
   const metrics             = useStore(s => s.metrics);
   const timeWindow          = useStore(s => s.timeWindow);
+  const extRangeMs          = useStore(s => s.extRangeMs);
+  const extLoading          = useStore(s => s.extLoading);
   const activePanel         = useStore(s => s.activePanel);
   const setTimeWindow       = useStore(s => s.setTimeWindow);
+  const setExtRange         = useStore(s => s.setExtRange);
   const setActivePanel      = useStore(s => s.setActivePanel);
 
   useEffect(() => {
@@ -51,11 +54,18 @@ export function Header({ onFitServer }: Props) {
     },
   ] as const;
 
-  const timeRanges = [
+  const shortRanges = [
     { pts: 60,   label: '2m'  },
     { pts: 300,  label: '10m' },
     { pts: 900,  label: '30m' },
     { pts: 1800, label: '1h'  },
+  ];
+  const longRanges = [
+    { ms: 6  * 3600 * 1000, label: '6h'  },
+    { ms: 24 * 3600 * 1000, label: '24h' },
+    { ms: 7  * 86400 * 1000, label: '7d' },
+    { ms: 30 * 86400 * 1000, label: '30d' },
+    { ms: -1,               label: 'All' },
   ];
 
   const hdrStyle: React.CSSProperties = {
@@ -130,9 +140,19 @@ export function Header({ onFitServer }: Props) {
       {activePanel === 'server' && (
         <div id="server-controls" style={{ display: 'contents' }}>
           <div style={{ display: 'flex', gap: 3 }}>
-            {timeRanges.map(({ pts, label }) => (
-              <button key={pts} style={trBtnStyle(timeWindow === pts)} onClick={() => setTimeWindow(pts)}>
+            {shortRanges.map(({ pts, label }) => (
+              <button key={pts} style={trBtnStyle(extRangeMs == null && timeWindow === pts)}
+                onClick={() => { setTimeWindow(pts); setExtRange(null); }}>
                 {label}
+              </button>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+          <div style={{ display: 'flex', gap: 3 }}>
+            {longRanges.map(({ ms, label }) => (
+              <button key={ms} style={trBtnStyle(extRangeMs === ms)}
+                onClick={() => setExtRange(ms)}>
+                {extLoading && extRangeMs === ms ? '…' : label}
               </button>
             ))}
           </div>

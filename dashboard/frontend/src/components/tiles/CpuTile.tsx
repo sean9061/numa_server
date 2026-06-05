@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Sparkline } from '../charts/Sparkline';
 import { TileCard, CardLabel, HeroNumber } from './TileCard';
 import { FanIcon } from '../FanIcon';
@@ -6,13 +7,12 @@ import { statusColor, barColor, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function CpuTile() {
-  const metrics    = useStore(s => s.metrics);
-  const history    = useStore(s => s.history);
-  const timeWindow = useStore(s => s.timeWindow);
+  const metrics = useStore(s => s.metrics);
+  const history = useViewHistory();
 
   const cpu  = metrics?.cpu;
   const pct  = cpu?.usage ?? 0;
-  const data = downsample(history.slice(-timeWindow).map(e => e.cpu), HIST_DISPLAY);
+  const data = downsample(history.map(e => e.cpu), HIST_DISPLAY);
 
   return (
     <TileCard strip={<Sparkline data={data} color="#3b82f6" strip />}>

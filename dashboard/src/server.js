@@ -8,7 +8,7 @@ import { dirname, join } from 'path';
 import { authRouter, verifyToken, COOKIE_NAME_EXPORT as COOKIE_NAME } from './auth.js';
 import { collectMetrics } from './metrics.js';
 import { listContainers, getContainerStats, containerAction, streamContainerLogs, startNpmTracking, getPortfolioWebStats } from './docker-monitor.js';
-import { pushEntry, getEntries, loadFromDisk, saveToDisk } from './history.js';
+import { pushEntry, getEntries, loadFromDisk, saveToDisk, queryHistory } from './history.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT ?? 3000;
@@ -50,6 +50,18 @@ const apiAuth = (req, res, next) => {
   }
   next();
 };
+
+app.get('/api/history', apiAuth, async (req, res) => {
+  try {
+    const now     = Date.now();
+    const to      = parseInt(req.query.to)      || now;
+    const from    = parseInt(req.query.from)    >= 0 ? parseInt(req.query.from) : now - 86_400_000;
+    const buckets = Math.min(parseInt(req.query.buckets) || 300, 1000);
+    res.json(await queryHistory(from, to, buckets));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/metrics', apiAuth, async (_req, res) => {
   try {
@@ -167,14 +179,15 @@ setInterval(saveToDisk, 60_000);
 // Save on graceful shutdown
 process.on('SIGTERM', async () => { await saveToDisk(); process.exit(0); });
 
-// Metrics broadcast loop (every 2s) — web stats merged into metrics message
+// Metrics collection loop (every 2s) — always collect and store, broadcast only when clients connected
 setInterval(async () => {
-  if (wss.clients.size === 0) return;
   try {
     const metrics = await collectMetrics();
     const pWeb = getPortfolioWebStats();
     pushEntry(metrics, pWeb.rpm);
-    broadcast({ type: 'metrics', data: { ...metrics, portfolio_rpm: pWeb.rpm, portfolio_total: pWeb.total_1h } });
+    if (wss.clients.size > 0) {
+      broadcast({ type: 'metrics', data: { ...metrics, portfolio_rpm: pWeb.rpm, portfolio_total: pWeb.total_1h } });
+    }
   } catch (err) {
     console.error('[metrics]', err.message);
   }
