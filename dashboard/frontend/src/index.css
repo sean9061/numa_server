@@ -149,3 +149,17 @@ html, body {
 
 /* ── Recharts customization ── */
 .recharts-surface { overflow: visible; }
+
+/* ── Settings panel: invisible range input over segments ── */
+.seg-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.seg-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0; height: 0;
+}
+.seg-range::-webkit-slider-runnable-track { background: transparent; }
+.seg-range::-moz-range-thumb  { width: 0; height: 0; border: none; }
+.seg-range::-moz-range-track  { background: transparent; }

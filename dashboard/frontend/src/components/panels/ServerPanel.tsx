@@ -22,6 +22,7 @@ export function ServerPanel({ visible, fitRef }: Props) {
 
   return (
     <div ref={vpRef} className="canvas-viewport" style={{ display: visible ? 'block' : 'none' }}>
+
       <div ref={canvasRef} className="canvas-layer">
         <div className="canvas-bg" />
 
