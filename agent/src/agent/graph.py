@@ -112,11 +112,15 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
         ]
     )
 
-    # 由来メールの本文を引けるようにする (締切の決定論的フォールバック用)
+    # 締切の決定論的フォールバック用に、由来メール本文と予定開始日を引けるようにする
     today = dt.date.today()
     email_text = {
         e.get("source", ""): f"{e.get('subject', '')} {e.get('snippet', '')}"
         for e in state.get("emails", [])
+    }
+    event_due = {
+        e.get("source", ""): (e.get("start", "") or "")[:10]  # 予定開始日(YYYY-MM-DD)
+        for e in state.get("events", [])
     }
 
     # 既存タイトルとの重複をプログラム的にも除去 (LLMの取りこぼし対策)
@@ -130,8 +134,12 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
         seen.add(key)
         item = p.model_dump()
         if not item.get("due"):  # LLMが取りこぼした締切を決定論的に補完
-            text = f"{email_text.get(item.get('source', ''), '')} {p.reason} {p.title}"
-            item["due"] = _due_fallback(text, today)
+            tokens = re.split(r"[,\s]+", item.get("source", "") or "")
+            text = " ".join(email_text.get(t, "") for t in tokens) + f" {p.reason} {p.title}"
+            due = _due_fallback(text, today)  # ① メール本文等の「○月○日」を解釈
+            if not due:  # ② カレンダー予定由来なら予定開始日を締切に流用
+                due = next((event_due[t] for t in tokens if event_due.get(t)), None)
+            item["due"] = due
         proposals.append(item)
         if len(proposals) >= settings.max_proposals_per_run:
             break
