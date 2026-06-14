@@ -1,0 +1,21 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: numa-agent
+    container_name: agent
+    restart: always
+    env_file: .env
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data                # checkpoints.sqlite / OAuthトークン等を永続化
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ollama_net                      # Ollama (http://ollama:11434) への到達 + 外部API egress
+
+networks:
+  ollama_net:
+    external: true
