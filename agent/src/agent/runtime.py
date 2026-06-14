@@ -30,7 +30,12 @@ class AgentRuntime:
         thread_id = uuid.uuid4().hex
         config = {"configurable": {"thread_id": thread_id}}
         log.info("クロール開始 thread=%s", thread_id)
-        result = await self.graph.ainvoke({}, config)
+        try:
+            result = await self.graph.ainvoke({}, config)
+        except Exception as e:
+            log.exception("クロール失敗 thread=%s", thread_id)
+            await self.notifier.send_text(f"⚠️ クロールに失敗しました: {e}")
+            return
 
         interrupts = result.get("__interrupt__")
         if interrupts:
@@ -43,9 +48,18 @@ class AgentRuntime:
     async def resume(self, thread_id: str, approved: bool) -> None:
         config = {"configurable": {"thread_id": thread_id}}
         log.info("再開 thread=%s approved=%s", thread_id, approved)
-        result = await self.graph.ainvoke(Command(resume={"approved": approved}), config)
+        if not approved:
+            await self.graph.ainvoke(Command(resume={"approved": False}), config)
+            await self.notifier.send_text("❌ 却下しました。Notionへの反映は行いません。")
+            return
+        try:
+            result = await self.graph.ainvoke(Command(resume={"approved": True}), config)
+        except Exception as e:
+            log.exception("反映失敗 thread=%s", thread_id)
+            await self.notifier.send_text(f"⚠️ 反映に失敗しました: {e}")
+            return
         applied = result.get("applied", [])
-        if approved:
-            await self.notifier.send_text(f"✅ 反映完了: {len(applied)}件")
-        else:
-            await self.notifier.send_text("❌ 却下しました。反映は行いません。")
+        titles = "\n".join(f"・{a.get('title', '')}" for a in applied)
+        await self.notifier.send_text(
+            f"✅ Notionに {len(applied)}件 反映しました。\n{titles}" if applied else "反映対象がありませんでした。"
+        )

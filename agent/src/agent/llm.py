@@ -16,6 +16,7 @@ def make_llm(**kwargs) -> ChatOllama:
         "base_url": settings.ollama_base_url,
         "model": settings.agent_model,
         "temperature": 0,
+        "num_ctx": settings.llm_num_ctx,
     }
     params.update(kwargs)
     return ChatOllama(**params)
