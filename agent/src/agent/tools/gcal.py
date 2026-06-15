@@ -38,6 +38,7 @@ def fetch_upcoming() -> list[dict]:
         out.append(
             {
                 "source": f"calendar:{ev.get('id', '')}",
+                "link": ev.get("htmlLink", ""),
                 "summary": ev.get("summary", "(無題の予定)"),
                 "start": start.get("dateTime") or start.get("date", ""),
                 "location": ev.get("location", ""),

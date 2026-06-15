@@ -18,6 +18,7 @@ log = logging.getLogger("agent.runtime")
 
 class Notifier(Protocol):
     async def send_proposal(self, thread_id: str, payload: dict[str, Any]) -> None: ...
+    async def send_applied(self, applied: list[dict[str, Any]]) -> None: ...
     async def send_text(self, text: str) -> None: ...
 
 
@@ -39,9 +40,16 @@ class AgentRuntime:
 
         interrupts = result.get("__interrupt__")
         if interrupts:
+            # REQUIRE_APPROVAL=true: 承認待ち。Discordボタンへ。
             payload = interrupts[0].value
-            log.info("提案あり thread=%s (%d件) → Discordへ", thread_id, len(payload.get("proposals", [])))
+            log.info("提案あり thread=%s (%d件) → 承認待ち", thread_id, len(payload.get("proposals", [])))
             await self.notifier.send_proposal(thread_id, payload)
+            return
+        # 既定: 承認を挟まず直接 Notion へ反映済み。結果を通知。
+        applied = result.get("applied", [])
+        if applied:
+            log.info("直接反映 thread=%s (%d件)", thread_id, len(applied))
+            await self.notifier.send_applied(applied)
         else:
             log.info("提案なし thread=%s", thread_id)
 
@@ -59,7 +67,7 @@ class AgentRuntime:
             await self.notifier.send_text(f"⚠️ 反映に失敗しました: {e}")
             return
         applied = result.get("applied", [])
-        titles = "\n".join(f"・{a.get('title', '')}" for a in applied)
-        await self.notifier.send_text(
-            f"✅ Notionに {len(applied)}件 反映しました。\n{titles}" if applied else "反映対象がありませんでした。"
-        )
+        if applied:
+            await self.notifier.send_applied(applied)
+        else:
+            await self.notifier.send_text("反映対象がありませんでした。")

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     crawl_interval_min: int = 30
     max_proposals_per_run: int = 10
     run_on_start: bool = True
+    # タスク追加は低リスクなので既定で承認不要(直接Notionへ挿入し結果のみ通知)。
+    # true にすると従来通り Discord ボタンでの承認を挟む。
+    require_approval: bool = False
 
     # --- Google (Phase 1) ---
     google_oauth_client_json: str = "/app/data/google_client.json"
@@ -33,7 +36,12 @@ class Settings(BaseSettings):
     notion_api_token: str = ""
     notion_tasks_db_id: str = ""
     notion_due_prop: str = "Due"        # 締切を入れる date プロパティ名 (無ければスキップ)
-    notion_source_prop: str = ""        # 由来IDを入れる rich_text プロパティ名 (任意・重複防止に使う)
+    notion_source_prop: str = ""        # 由来ID/リンクを入れる rich_text プロパティ名 (任意・重複防止に使う)
+    # 新規タスクにデフォルトで付与するステータスと挿入者タグ (DBに該当プロパティが無ければスキップ)
+    notion_status_prop: str = "Status"      # status / select 型のプロパティ名
+    notion_default_status: str = "未着手"    # 上記に設定する値 (status型は既存オプションに一致時のみ)
+    notion_tag_prop: str = "Tags"           # multi_select / select 型のプロパティ名
+    notion_agent_tag: str = "Agent"         # 挿入者を示すタグ値
 
     # --- Moodle (Phase 1) ---
     moodle_base_url: str = ""

@@ -1,11 +1,13 @@
 r"""LangGraph グラフ定義 (Phase 1: タスク管理クロール MVP)。
 
-    START -> crawl -> reconcile -(提案あり)-> review(interrupt) -> END
-                               \-(提案なし)--------------------> END
+    START -> crawl -> reconcile -(提案あり/承認不要)-> apply -> END
+                               \-(提案あり/承認必要)-> review(interrupt) -(承認)-> apply -> END
+                               \-(提案なし)----------------------------------------------> END
 
 - crawl_node    : Gmail(重要/未読) + Calendar(今後の予定) + Notion(既存タスク) を並行取得
-- reconcile_node: LLM(構造化出力)で「対応すべき新タスク」を抽出 → 既存と重複除去
-- review_node   : 提案を interrupt() でDiscordに提示 → 承認時のみ Notion に書込
+- reconcile_node: LLM(構造化出力)で「対応すべき新タスク」を抽出 → 既存と重複除去 → 由来を解決
+- review_node   : (REQUIRE_APPROVAL=true 時のみ) 提案を interrupt() でDiscordに提示
+- apply_node    : Notion へ書込 (タスク追加は低リスクのため既定で承認を挟まず直接挿入)
 
 外部I/Oとブロッキング処理は asyncio.to_thread / LLMの ainvoke で実行し、
 Discordゲートウェイのイベントループを塞がないようにする。
@@ -38,6 +40,9 @@ class Proposal(BaseModel):
     due: Optional[str] = Field(default=None, description="締切 ISO8601(YYYY-MM-DD 等)。不明ならnull")
     reason: str = Field(description="このタスクを提案する根拠(どのメール/予定からか)")
     source: Optional[str] = Field(default=None, description="由来ID (gmail:.. / calendar:..)")
+    # 以下は reconcile で由来から解決して付与する (LLM出力ではない)
+    source_url: Optional[str] = Field(default=None, description="由来へのリンク")
+    source_label: Optional[str] = Field(default=None, description="由来の人間可読ラベル")
 
 
 class ProposalList(BaseModel):
@@ -58,15 +63,113 @@ _SYSTEM_PROMPT = (
     "ユーザーの未読/重要メール、今後の予定、既存のタスク一覧が与えられます。"
     "メールや予定の中から、ユーザーが新たに対応すべきアクション(タスク)を抽出してください。"
     "既存タスクと重複・実質同一のものは提案しないこと。"
-    "各タスクには日本語の簡潔なタイトル、締切(分かれば ISO8601、不明なら null)、"
-    "根拠(reason)、由来ID(source)を付けてください。"
-    "締切は与えられた『本日の日付』を基準に、『6月20日』『明後日』等を必ず YYYY-MM-DD 形式へ変換すること。"
     "単なる通知や対応不要なものは含めないこと。"
+    "締切は与えられた『本日の日付』を基準に、『6月20日』『明後日』等を必ず YYYY-MM-DD 形式へ変換すること。"
+    "\n\n出力は説明文を一切付けず、次の形式の JSON 配列のみを返すこと:\n"
+    '[{"title": "日本語の簡潔なタスク名", "due": "YYYY-MM-DD または null", '
+    '"reason": "提案の根拠(どのメール/予定からか)", "source": "由来ID (gmail:.. / calendar:..)"}]\n'
+    "対応すべきタスクが無ければ空配列 [] を返すこと。"
 )
 
 
 def _norm(s: str) -> str:
     return "".join(s.split()).lower()
+
+
+_FENCE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+_DUE_KEYS = ("due", "due_date", "deadline", "due_at", "期限", "締切")
+
+
+def _extract_json(text: str) -> Any:
+    """LLMの生テキストからJSON(配列/オブジェクト)を寛容に取り出す。失敗時は None。
+
+    ローカル推論モデルは ```json フェンスや前置きの散文を付けることがあるため、
+    フェンス内→先頭の [ / { 以降→全体、の順にパースを試みる。
+    """
+    if not text:
+        return None
+    m = _FENCE.search(text)
+    candidates = [m.group(1).strip()] if m else []
+    stripped = text.strip()
+    for opener in ("[", "{"):
+        idx = stripped.find(opener)
+        if idx != -1:
+            candidates.append(stripped[idx:])
+    candidates.append(stripped)
+    for c in candidates:
+        try:
+            return json.loads(c)
+        except (json.JSONDecodeError, ValueError):
+            continue
+    return None
+
+
+def _to_proposals(data: Any) -> list["Proposal"]:
+    """パース済みJSONを Proposal のリストへ正規化 (キー別名・形ゆれを吸収)。"""
+    if isinstance(data, dict):
+        items = data.get("proposals") or data.get("tasks") or []
+    elif isinstance(data, list):
+        items = data
+    else:
+        items = []
+    out: list[Proposal] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        title = str(it.get("title") or "").strip()
+        if not title:
+            continue
+        due = next((it[k] for k in _DUE_KEYS if it.get(k)), None)
+        out.append(Proposal(title=title, due=due, reason=str(it.get("reason") or ""), source=it.get("source")))
+    return out
+
+
+async def _generate_proposals(payload: dict[str, Any]) -> list["Proposal"]:
+    """LLMにタスク抽出させ、寛容パースで Proposal 化する。空応答は数回リトライ。
+
+    qwen3.6 等のローカル推論モデルは format制約(structured output)下でまれに空応答を返すため、
+    通常生成 + 自前パースの方が安定する (生出力は信頼できることを実機で確認済み)。
+    また reasoning=False で thinking を無効化する。有効だと <think> が生成バジェットを
+    使い切り done_reason=length で本文が空になることがあるため (実機で確認済み)。
+    """
+    llm = make_llm(reasoning=False)
+    messages = [
+        SystemMessage(content=_SYSTEM_PROMPT),
+        HumanMessage(content=json.dumps(payload, ensure_ascii=False, indent=2)),
+    ]
+    for attempt in range(1, 4):
+        resp = await llm.ainvoke(messages)
+        text = resp.content if hasattr(resp, "content") else str(resp)
+        data = _extract_json(text if isinstance(text, str) else str(text))
+        if data is not None:
+            return _to_proposals(data)
+        log.warning("reconcile: LLM出力をJSONとして解釈できず再試行 (%d/3)", attempt)
+    log.error("reconcile: 3回ともJSON解釈に失敗。提案なしとして続行")
+    return []
+
+
+def _build_source_index(state: AgentState) -> dict[str, dict[str, str]]:
+    """source ID -> {url, label} の索引を作る (Discord通知・Notionリンク用)。"""
+    index: dict[str, dict[str, str]] = {}
+    for e in state.get("emails", []):
+        src = e.get("source", "")
+        if src:
+            subj = e.get("subject", "") or "(件名なし)"
+            frm = e.get("from", "")
+            index[src] = {"url": e.get("link", ""), "label": f"メール: {subj}".strip() + (f" — {frm}" if frm else "")}
+    for ev in state.get("events", []):
+        src = ev.get("source", "")
+        if src:
+            index[src] = {"url": ev.get("link", ""), "label": f"予定: {ev.get('summary', '(無題の予定)')}"}
+    return index
+
+
+def _resolve_source(source: Optional[str], index: dict[str, dict[str, str]]) -> dict[str, Optional[str]]:
+    """提案の source (複数IDの場合あり) から最初に解決できた url/label を返す。"""
+    for tok in re.split(r"[,\s]+", source or ""):
+        if tok in index:
+            return {"source_url": index[tok].get("url") or None, "source_label": index[tok].get("label")}
+    return {"source_url": None, "source_label": None}
 
 
 _JP_DATE = re.compile(r"(?:(\d{4})[/年-])?\s*(\d{1,2})月(\d{1,2})日")
@@ -104,13 +207,7 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
         "existing_tasks": [t["title"] for t in state.get("existing_tasks", [])],
         "max_proposals": settings.max_proposals_per_run,
     }
-    llm = make_llm().with_structured_output(ProposalList)
-    result: ProposalList = await llm.ainvoke(
-        [
-            SystemMessage(content=_SYSTEM_PROMPT),
-            HumanMessage(content=json.dumps(payload, ensure_ascii=False, indent=2)),
-        ]
-    )
+    generated = await _generate_proposals(payload)
 
     # 締切の決定論的フォールバック用に、由来メール本文と予定開始日を引けるようにする
     today = dt.date.today()
@@ -125,9 +222,10 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
 
     # 既存タイトルとの重複をプログラム的にも除去 (LLMの取りこぼし対策)
     existing_norm = {_norm(t["title"]) for t in state.get("existing_tasks", [])}
+    source_index = _build_source_index(state)
     proposals: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for p in result.proposals:
+    for p in generated:
         key = _norm(p.title)
         if not p.title or key in existing_norm or key in seen:
             continue
@@ -140,6 +238,7 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
             if not due:  # ② カレンダー予定由来なら予定開始日を締切に流用
                 due = next((event_due[t] for t in tokens if event_due.get(t)), None)
             item["due"] = due
+        item.update(_resolve_source(item.get("source"), source_index))  # 由来リンク/ラベルを解決
         proposals.append(item)
         if len(proposals) >= settings.max_proposals_per_run:
             break
@@ -149,24 +248,40 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
 
 
 async def review_node(state: AgentState) -> dict[str, Any]:
-    proposals = state.get("proposals", [])
-    decision = interrupt({"proposals": proposals})
+    """REQUIRE_APPROVAL=true 時のみ経由。Discordに提案を提示し承認結果を受け取る。"""
+    decision = interrupt({"proposals": state.get("proposals", [])})
     approved = bool(decision.get("approved")) if isinstance(decision, dict) else bool(decision)
-    if not approved:
-        return {"approved": False, "applied": []}
+    return {"approved": approved}
 
+
+async def apply_node(state: AgentState) -> dict[str, Any]:
+    """提案を Notion に書き込む。由来リンク・ステータス・挿入者タグも併せて付与する。"""
     applied: list[dict[str, Any]] = []
-    for p in proposals:
+    for p in state.get("proposals", []):
         try:
-            await asyncio.to_thread(notion.create_task, p["title"], p.get("due"), p.get("source"))
+            await asyncio.to_thread(
+                notion.create_task,
+                p["title"],
+                p.get("due"),
+                p.get("source"),
+                p.get("source_url"),
+                p.get("source_label"),
+            )
             applied.append(p)
         except Exception:
             log.exception("Notion作成失敗: %s", p.get("title"))
-    return {"approved": True, "applied": applied}
+    log.info("apply: Notion反映 %d件", len(applied))
+    return {"applied": applied}
 
 
 def _route_after_reconcile(state: AgentState) -> str:
-    return "review" if state.get("proposals") else "end"
+    if not state.get("proposals"):
+        return "end"
+    return "review" if settings.require_approval else "apply"
+
+
+def _route_after_review(state: AgentState) -> str:
+    return "apply" if state.get("approved") else "end"
 
 
 def build_graph(checkpointer: BaseCheckpointSaver):
@@ -174,8 +289,12 @@ def build_graph(checkpointer: BaseCheckpointSaver):
     builder.add_node("crawl", crawl_node)
     builder.add_node("reconcile", reconcile_node)
     builder.add_node("review", review_node)
+    builder.add_node("apply", apply_node)
     builder.add_edge(START, "crawl")
     builder.add_edge("crawl", "reconcile")
-    builder.add_conditional_edges("reconcile", _route_after_reconcile, {"review": "review", "end": END})
-    builder.add_edge("review", END)
+    builder.add_conditional_edges(
+        "reconcile", _route_after_reconcile, {"review": "review", "apply": "apply", "end": END}
+    )
+    builder.add_conditional_edges("review", _route_after_review, {"apply": "apply", "end": END})
+    builder.add_edge("apply", END)
     return builder.compile(checkpointer=checkpointer)

@@ -49,6 +49,7 @@ def fetch_recent() -> list[dict]:
         out.append(
             {
                 "source": f"gmail:{ref['id']}",
+                "link": f"https://mail.google.com/mail/u/0/#all/{ref['id']}",
                 "from": _header(headers, "From"),
                 "subject": _header(headers, "Subject"),
                 "date": _header(headers, "Date"),

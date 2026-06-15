@@ -56,6 +56,19 @@ def _make_view(thread_id: str) -> discord.ui.View:
     return view
 
 
+def _source_line(p: dict[str, Any]) -> str:
+    """提案の由来を1行で表す。リンクがあれば Markdown リンクにする。"""
+    label = p.get("source_label") or p.get("source") or "不明"
+    url = p.get("source_url")
+    return f"[{label}]({url})" if url else label
+
+
+def _proposal_field(p: dict[str, Any]) -> str:
+    due = p.get("due")
+    lines = [f"締切: {due}" if due else "締切: —", f"出典: {_source_line(p)}"]
+    return "\n".join(lines)
+
+
 def _build_embed(payload: dict[str, Any]) -> discord.Embed:
     proposals = payload.get("proposals", [])
     embed = discord.Embed(
@@ -64,9 +77,18 @@ def _build_embed(payload: dict[str, Any]) -> discord.Embed:
         color=0x5865F2,
     )
     for i, p in enumerate(proposals, 1):
-        due = p.get("due")
-        value = f"締切: {due}" if due else "—"
-        embed.add_field(name=f"{i}. {p.get('title', '(無題)')}", value=value, inline=False)
+        embed.add_field(name=f"{i}. {p.get('title', '(無題)')}", value=_proposal_field(p), inline=False)
+    return embed
+
+
+def _build_applied_embed(applied: list[dict[str, Any]]) -> discord.Embed:
+    embed = discord.Embed(
+        title="✅ タスクを追加しました",
+        description=f"{len(applied)} 件を Notion に追加しました。",
+        color=0x57F287,
+    )
+    for i, p in enumerate(applied, 1):
+        embed.add_field(name=f"{i}. {p.get('title', '(無題)')}", value=_proposal_field(p), inline=False)
     return embed
 
 
@@ -96,6 +118,10 @@ class AgentBot(discord.Client):
     async def send_proposal(self, thread_id: str, payload: dict[str, Any]) -> None:
         ch = await self._channel()
         await ch.send(embed=_build_embed(payload), view=_make_view(thread_id))
+
+    async def send_applied(self, applied: list[dict[str, Any]]) -> None:
+        ch = await self._channel()
+        await ch.send(embed=_build_applied_embed(applied))
 
     async def send_text(self, text: str) -> None:
         ch = await self._channel()

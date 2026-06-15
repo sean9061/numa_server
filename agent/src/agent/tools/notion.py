@@ -60,8 +60,50 @@ def list_tasks() -> list[dict]:
     return out
 
 
-def create_task(title: str, due: str | None = None, source: str | None = None) -> str:
-    """新規タスクを作成しページIDを返す。due/source は対応プロパティが存在する場合のみ設定。"""
+def _apply_status(properties: dict, props: dict) -> None:
+    """デフォルトのステータスを設定。status型は既存オプションに一致する場合のみ設定する
+    (status型は API から新規オプションを作れないため。select型は自動作成される)。"""
+    prop_name = settings.notion_status_prop
+    value = settings.notion_default_status
+    if not prop_name or not value or prop_name not in props:
+        return
+    ptype = props[prop_name].get("type")
+    if ptype == "status":
+        options = props[prop_name].get("status", {}).get("options", [])
+        if not any(o.get("name") == value for o in options):
+            log.warning("Notion: status '%s' に '%s' が無いためスキップ", prop_name, value)
+            return
+        properties[prop_name] = {"status": {"name": value}}
+    elif ptype == "select":
+        properties[prop_name] = {"select": {"name": value}}
+
+
+def _apply_tag(properties: dict, props: dict) -> None:
+    """挿入者タグ(例: Agent)を付与。multi_select/select の双方に対応(オプションは自動作成)。"""
+    prop_name = settings.notion_tag_prop
+    value = settings.notion_agent_tag
+    if not prop_name or not value or prop_name not in props:
+        return
+    ptype = props[prop_name].get("type")
+    if ptype == "multi_select":
+        properties[prop_name] = {"multi_select": [{"name": value}]}
+    elif ptype == "select":
+        properties[prop_name] = {"select": {"name": value}}
+
+
+def create_task(
+    title: str,
+    due: str | None = None,
+    source: str | None = None,
+    source_url: str | None = None,
+    source_label: str | None = None,
+) -> str:
+    """新規タスクを作成しページIDを返す。
+
+    due/source は対応プロパティが存在する場合のみ設定する。
+    source_url があれば由来プロパティをクリック可能なリンクにし、ページ本文にも
+    「🔗 ソース」リンクブロックを追加する。ステータスと挿入者タグはデフォルトで付与する。
+    """
     schema = _schema()
     props = schema["props"]
     properties: dict = {schema["title_prop"]: {"title": [{"text": {"content": title}}]}}
@@ -70,13 +112,37 @@ def create_task(title: str, due: str | None = None, source: str | None = None) -
     if due and due_prop in props and props[due_prop].get("type") == "date":
         properties[due_prop] = {"date": {"start": due}}
 
+    # 由来: 重複判定のためテキストは source(ID) のまま、リンクがあれば url を付与
     src_prop = settings.notion_source_prop
     if source and src_prop and src_prop in props and props[src_prop].get("type") == "rich_text":
-        properties[src_prop] = {"rich_text": [{"text": {"content": source}}]}
+        text: dict = {"content": source}
+        if source_url:
+            text["link"] = {"url": source_url}
+        properties[src_prop] = {"rich_text": [{"text": text}]}
+
+    _apply_status(properties, props)
+    _apply_tag(properties, props)
+
+    children = None
+    if source_url:
+        label = source_label or source or "ソース"
+        children = [
+            {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {"type": "text", "text": {"content": "🔗 ソース: "}},
+                        {"type": "text", "text": {"content": label, "link": {"url": source_url}}},
+                    ]
+                },
+            }
+        ]
 
     page = _client().pages.create(
         parent={"type": "data_source_id", "data_source_id": schema["data_source_id"]},
         properties=properties,
+        **({"children": children} if children else {}),
     )
     log.info("Notion: タスク作成 '%s'", title)
     return page["id"]
