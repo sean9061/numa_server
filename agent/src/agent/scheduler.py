@@ -21,5 +21,16 @@ def make_scheduler(runtime: AgentRuntime) -> AsyncIOScheduler:
         max_instances=1,
         coalesce=True,
     )
-    log.info("スケジューラ設定: %d分間隔でクロール", settings.crawl_interval_min)
+    if settings.draft_enabled:
+        scheduler.add_job(
+            runtime.run_drafts,
+            trigger="interval",
+            minutes=settings.crawl_interval_min,
+            id="drafts",
+            max_instances=1,
+            coalesce=True,
+        )
+        log.info("スケジューラ設定: %d分間隔でクロール＋返信案", settings.crawl_interval_min)
+    else:
+        log.info("スケジューラ設定: %d分間隔でクロール", settings.crawl_interval_min)
     return scheduler

@@ -30,7 +30,19 @@ class Settings(BaseSettings):
     google_token_json: str = "/app/data/google_token.json"
     gmail_query: str = "is:unread (is:important OR is:starred)"
     gmail_max_results: int = 15
+    gmail_body_max_chars: int = 4000   # 返信生成に渡すメール本文の上限
     calendar_lookahead_days: int = 14
+
+    # --- メール返信案 (Phase 2a, 読み取り専用) ---
+    draft_enabled: bool = False        # 返信案フローの有効化 (Discordに案を提示するだけ)
+    draft_max_per_run: int = 5         # 1回で生成する返信案の上限
+    # 日程提案用の空き時間計算 (カレンダーから決定論的に算出)
+    avail_days: int = 14               # 何日先まで空き枠を探すか
+    avail_day_start: int = 9           # 営業時間の開始(時)
+    avail_day_end: int = 21            # 営業時間の終了(時)
+    avail_weekdays_only: bool = True   # 平日のみ提案するか
+    avail_min_minutes: int = 60        # 空き枠とみなす最小の連続時間(分)
+    avail_max_slots: int = 12          # LLMに渡す空き枠の最大数
 
     # --- Notion (Phase 1) ---
     notion_api_token: str = ""

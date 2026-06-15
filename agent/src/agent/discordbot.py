@@ -20,7 +20,7 @@ class ProposalButton(
     discord.ui.DynamicItem[discord.ui.Button],
     template=r"agent:(?P<action>approve|reject):(?P<thread>[0-9a-f]+)",
 ):
-    """custom_id に action と thread_id を埋め込んだ永続ボタン。"""
+    """custom_id に action と thread_id を埋め込んだ永続ボタン (タスク承認用)。"""
 
     def __init__(self, action: str, thread_id: str):
         self.action = action
@@ -45,7 +45,6 @@ class ProposalButton(
             content=f"{'✅ 承認' if approved else '❌ 却下'} を受け付けました。処理中...",
             view=None,
         )
-        # 再開は時間がかかり得る (Phase 1 で LLM/外部API) ので ACK 後に実行。
         await interaction.client.runtime.resume(self.thread_id, approved)
 
 
@@ -92,6 +91,29 @@ def _build_applied_embed(applied: list[dict[str, Any]]) -> discord.Embed:
     return embed
 
 
+def _clip(text: str, n: int) -> str:
+    text = (text or "").strip()
+    return text if len(text) <= n else text[: n - 1] + "…"
+
+
+def _suggestion_field(d: dict[str, Any]) -> str:
+    link = d.get("link")
+    src = f"  [元メール]({link})" if link else ""
+    head = f"宛先: {_clip(d.get('to', ''), 60)}{src}"
+    return f"{head}\n```\n{_clip(d.get('body', ''), 900)}\n```"
+
+
+def _build_suggestions_embed(suggestions: list[dict[str, Any]]) -> discord.Embed:
+    embed = discord.Embed(
+        title="✉️ 返信案",
+        description=f"{len(suggestions)} 件の返信案です（Gmailへの書込はしません）。内容を確認し、必要ならGmailにコピーして送ってください。",
+        color=0xFEE75C,
+    )
+    for i, d in enumerate(suggestions, 1):
+        embed.add_field(name=f"{i}. {_clip(d.get('subject', '(無題)'), 80)}", value=_suggestion_field(d), inline=False)
+    return embed
+
+
 class AgentBot(discord.Client):
     def __init__(self):
         super().__init__(intents=discord.Intents.default())
@@ -108,6 +130,9 @@ class AgentBot(discord.Client):
             self._ran_start = True
             log.info("RUN_ON_START=true: 起動時クロールを実行")
             asyncio.create_task(self.runtime.run_crawl())
+            if settings.draft_enabled:
+                log.info("DRAFT_ENABLED=true: 起動時に返信案も生成")
+                asyncio.create_task(self.runtime.run_drafts())
 
     async def _channel(self) -> discord.abc.Messageable:
         ch = self.get_channel(settings.discord_channel_id)
@@ -122,6 +147,10 @@ class AgentBot(discord.Client):
     async def send_applied(self, applied: list[dict[str, Any]]) -> None:
         ch = await self._channel()
         await ch.send(embed=_build_applied_embed(applied))
+
+    async def send_suggestions(self, suggestions: list[dict[str, Any]]) -> None:
+        ch = await self._channel()
+        await ch.send(embed=_build_suggestions_embed(suggestions))
 
     async def send_text(self, text: str) -> None:
         ch = await self._channel()

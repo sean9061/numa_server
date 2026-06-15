@@ -35,12 +35,15 @@ def fetch_upcoming() -> list[dict]:
     out: list[dict] = []
     for ev in events.get("items", []):
         start = ev.get("start", {})
+        end = ev.get("end", {})
         out.append(
             {
                 "source": f"calendar:{ev.get('id', '')}",
                 "link": ev.get("htmlLink", ""),
                 "summary": ev.get("summary", "(無題の予定)"),
                 "start": start.get("dateTime") or start.get("date", ""),
+                "end": end.get("dateTime") or end.get("date", ""),
+                "transparency": ev.get("transparency", "opaque"),  # transparent=予定なし(free)扱い
                 "location": ev.get("location", ""),
             }
         )
