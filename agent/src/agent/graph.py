@@ -27,6 +27,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
+from . import seen
 from .config import settings
 from .llm import make_llm
 from .tools import gcal, gmail, notion
@@ -224,12 +225,15 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
     existing_norm = {_norm(t["title"]) for t in state.get("existing_tasks", [])}
     source_index = _build_source_index(state)
     proposals: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    seen_titles: set[str] = set()
     for p in generated:
         key = _norm(p.title)
-        if not p.title or key in existing_norm or key in seen:
+        if not p.title or key in existing_norm or key in seen_titles:
             continue
-        seen.add(key)
+        if seen.is_seen(p.source):  # 過去に反映/却下済みの由来は再提案しない
+            log.info("reconcile: 記憶済みの由来をスキップ source=%s", p.source)
+            continue
+        seen_titles.add(key)
         item = p.model_dump()
         if not item.get("due"):  # LLMが取りこぼした締切を決定論的に補完
             tokens = re.split(r"[,\s]+", item.get("source", "") or "")
@@ -251,6 +255,8 @@ async def review_node(state: AgentState) -> dict[str, Any]:
     """REQUIRE_APPROVAL=true 時のみ経由。Discordに提案を提示し承認結果を受け取る。"""
     decision = interrupt({"proposals": state.get("proposals", [])})
     approved = bool(decision.get("approved")) if isinstance(decision, dict) else bool(decision)
+    if not approved:  # 却下された由来は記憶し、次回以降は再提案しない
+        await asyncio.to_thread(seen.mark, state.get("proposals", []), "rejected")
     return {"approved": approved}
 
 
@@ -270,6 +276,8 @@ async def apply_node(state: AgentState) -> dict[str, Any]:
             applied.append(p)
         except Exception:
             log.exception("Notion作成失敗: %s", p.get("title"))
+    if applied:  # 反映済みの由来は記憶し、削除後も再提案しない
+        await asyncio.to_thread(seen.mark, applied, "applied")
     log.info("apply: Notion反映 %d件", len(applied))
     return {"applied": applied}
 

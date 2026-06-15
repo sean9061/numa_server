@@ -16,7 +16,7 @@ import tempfile
 
 async def main() -> None:
     # 1. import チェック
-    from agent import checkpoint, discordbot, graph, llm, runtime, scheduler  # noqa: F401
+    from agent import checkpoint, discordbot, graph, llm, runtime, scheduler, seen  # noqa: F401
     from agent.config import settings
     from agent.graph import Proposal, ProposalList, _norm, _resolve_source
     from agent.tools import notion
@@ -52,6 +52,7 @@ async def main() -> None:
         created.append((title, source_url))
         return "page-" + title
 
+    real_reconcile_node = graph.reconcile_node  # test 6 用に実関数を退避
     graph.crawl_node = fake_crawl
     graph.reconcile_node = fake_reconcile
     notion.create_task = fake_create_task
@@ -119,6 +120,37 @@ async def main() -> None:
     assert len(r4.get("applied", [])) == 2 and len(created) == 2, (r4, created)
     await conn2.close()
     print("[4] 再起動跨ぎ resume→書込 OK")
+
+    # 5. seen_sources: 由来IDの記憶と永続化 (再提案防止)
+    from agent import seen as seen_mod
+    settings.data_dir = tempfile.mkdtemp()
+    seen_mod._cache = None
+    assert not seen_mod.is_seen("gmail:zzz")
+    seen_mod.mark([{"source": "gmail:zzz", "title": "X"}, {"source": "calendar:e1", "title": "Y"}], "applied")
+    assert seen_mod.is_seen("gmail:zzz") and seen_mod.is_seen("calendar:e1")
+    assert not seen_mod.is_seen("gmail:other")
+    assert not seen_mod.is_seen(None)
+    seen_mod._cache = None  # ディスクから再読込 (再起動相当)
+    assert seen_mod.is_seen("gmail:zzz"), "seen_sources が永続化されていない"
+    print("[5] seen_sources 記憶/永続化 OK")
+
+    # 6. reconcile が記憶済み source を除外する (実nodeを使用、LLMはスタブ)
+    from agent.graph import Proposal as P
+    settings.data_dir = tempfile.mkdtemp()
+    seen_mod._cache = None
+    seen_mod.mark([{"source": "gmail:seen1", "title": "既出"}], "rejected")
+
+    async def fake_gen(payload):
+        return [
+            P(title="新規タスクA", reason="r", source="gmail:new1"),
+            P(title="既出タスク", reason="r", source="gmail:seen1"),  # 記憶済み→除外される
+        ]
+
+    graph._generate_proposals = fake_gen
+    out = await real_reconcile_node({"emails": [], "events": [], "existing_tasks": []})
+    titles = [p["title"] for p in out["proposals"]]
+    assert titles == ["新規タスクA"], titles
+    print("[6] reconcile: 記憶済みsource除外 OK")
 
     print("\nALL SMOKE TESTS PASSED ✅")
 
