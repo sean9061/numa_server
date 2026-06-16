@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     discord_channel_id: int
     # 司書(会話で方針をCRUD・段階B)。要 Message Content Intent (Developer Portal)。
     librarian_enabled: bool = True
+    # 短期会話セッション: この分数 無応答だと文脈をリセット(プロセス内のみ・再起動で消える)。
+    session_idle_min: int = 5
+    session_max_messages: int = 12  # セッションで保持する発話数(user+assistant 合算)
 
     # --- 動作設定 ---
     data_dir: str = "/app/data"

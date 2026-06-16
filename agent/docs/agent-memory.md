@@ -100,7 +100,7 @@ MemoryItem {
 
 ## 11. 段階計画
 - **A 土台** ✅ 実装済み(未コミット): directiveストア(`data/directives.json`) + `context()`/`directives_block()` + `reconcile`/`compose` への常時注入。初期ルールは `scripts/seed_directives.py` で手動seed。→ 「常時ルールが効くか」を先に確認。**残: 実データでのゴミタスク削減効果の検証**（seed投入＋本番クロールで before/after）。
-- **B 対話（Discord）** ✅ 実装済み(smoke検証): `librarian.interpret()`（会話→remember/forget/list/none）＋ `discordbot.on_message`＋ `_ConfirmView`（確認HITL）。司書はエージェント本体と同一プロセスのため directive 更新は `_dir_cache` 共有で**再起動なしに次回クロールへ反映**。`LIBRARIAN_ENABLED`(既定true)。**要 Message Content Intent**(未有効だとログイン不可)。**残: 本番での会話動作確認**。
+- **B 対話（Discord）** ✅ 実装・本番反映済み: `librarian.respond()`（**基本は通常チャット**、指示時のみ remember/forget/list）＋ `discordbot.on_message`＋ `_ConfirmView`（確認HITL）。**短期会話セッション**（channel単位・`SESSION_IDLE_MIN`=5分 無応答でリセット・プロセス内のみ）で多ターンの文脈を保持。司書はエージェント本体と同一プロセスのため directive 更新は `_dir_cache` 共有で**再起動なしに次回クロールへ反映**。`LIBRARIAN_ENABLED`(既定true)。**要 Message Content Intent**。
 - **C 運用**: supersede・矛盾解消・予算/昇格降格・deterministic routing・コンパクション。
 
 ## 12. リスク・未解決

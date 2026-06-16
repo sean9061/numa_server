@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import discord
@@ -163,6 +164,8 @@ class AgentBot(discord.Client):
         super().__init__(intents=intents)
         self.runtime = None  # main で AgentRuntime を注入
         self._ran_start = False
+        # 短期会話セッション: channel_id -> {"history": [(role, content)], "last": monotonic}
+        self._sessions: dict[int, dict[str, Any]] = {}
 
     async def setup_hook(self):
         # 再起動後もボタンを有効にするため動的アイテムを登録
@@ -186,13 +189,23 @@ class AgentBot(discord.Client):
         content = (message.content or "").strip()
         if not content:
             return
+        # 短期セッション: アイドル超過なら文脈をリセット
+        now = time.monotonic()
+        sess = self._sessions.get(message.channel.id)
+        if sess is None or now - sess["last"] > settings.session_idle_min * 60:
+            sess = {"history": [], "last": now}
+            self._sessions[message.channel.id] = sess
         try:
             async with message.channel.typing():
-                result = await librarian.respond(content)
+                result = await librarian.respond(content, sess["history"])
         except Exception:
             log.exception("アシスタント: 応答に失敗")
             await message.channel.send("⚠️ うまく応答できませんでした。")
             return
+        # 今回のやり取りをセッションに追加(古いものは捨てる)
+        sess["history"] += [("user", content), ("assistant", result.get("reply") or "")]
+        sess["history"] = sess["history"][-settings.session_max_messages:]
+        sess["last"] = time.monotonic()
         await self._dispatch_chat(message.channel, result)
 
     async def _dispatch_chat(self, channel, result: dict[str, Any]) -> None:

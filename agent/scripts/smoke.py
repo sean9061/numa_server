@@ -351,11 +351,13 @@ async def main() -> None:
     settings.data_dir = tempfile.mkdtemp()
     memory_mod._dir_cache = None
     canned = {"text": ""}
+    captured = {"msgs": None}
 
-    async def fake_call(message, context):
+    async def fake_invoke(messages):
+        captured["msgs"] = messages
         return canned["text"]
 
-    librarian._call_llm = fake_call
+    librarian._invoke = fake_invoke
 
     # 通常の会話 → action=none で reply をそのまま返す(メモリ操作しない)
     canned["text"] = '{"action":"none","reply":"こんにちは!何かお手伝いできますか?"}'
@@ -387,6 +389,15 @@ async def main() -> None:
     canned["text"] = '{"action":"remember","directives":[],"reply":"はい"}'
     assert (await librarian.respond("覚えて"))["action"] == "none"
     print("[13] アシスタント: 既定チャット/指示時のみメモリ操作 OK")
+
+    # 13b. 短期会話メモリ: 履歴がプロンプトに含まれる(多ターン)
+    canned["text"] = '{"action":"none","reply":"3つ目はCです"}'
+    await librarian.respond("3つ目は?", history=[("user", "候補を3つ"), ("assistant", "A,B,C")])
+    msgs = captured["msgs"]
+    assert len(msgs) == 4, msgs  # system + 履歴2 + 今回
+    assert msgs[1].content == "候補を3つ" and msgs[2].content == "A,B,C", msgs
+    assert msgs[-1].content == "3つ目は?", msgs
+    print("[13b] 短期会話メモリ: 履歴がプロンプトに含まれる OK")
 
     print("\nALL SMOKE TESTS PASSED ✅")
 

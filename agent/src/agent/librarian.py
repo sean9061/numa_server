@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from . import memory
 from .graph import _extract_json
@@ -52,24 +52,27 @@ def _directives_context() -> str:
     return "\n\n現在の方針:\n" + lines
 
 
-async def _call_llm(message: str, context: str) -> str:
+async def _invoke(messages: list[Any]) -> str:
     """アシスタントLLMを呼び生テキストを返す(JSON抽出は呼び出し側)。"""
     llm = make_llm(reasoning=False)
-    messages = [
-        SystemMessage(content=_SYSTEM + context),
-        HumanMessage(content=message),
-    ]
     resp = await llm.ainvoke(messages)
     return resp.content if hasattr(resp, "content") else str(resp)
 
 
-async def respond(message: str) -> dict[str, Any]:
+async def respond(message: str, history: list[tuple[str, str]] | None = None) -> dict[str, Any]:
     """会話メッセージに応答する。常に reply を返し、指示時のみ action を伴う。
 
+    history は短期セッションの直近のやり取り [(role, content), …]
+    (role は "user"/"assistant")。多ターンの文脈を保つために渡す。
     返り値: {reply, action(none/remember/forget/list), directives, targets}
     JSONが壊れたら生テキストをそのままチャット応答に使う(普通に会話できるよう安全側)。
     """
-    raw = await _call_llm(message, _directives_context())
+    messages: list[Any] = [SystemMessage(content=_SYSTEM + _directives_context())]
+    for role, content in history or []:
+        messages.append(AIMessage(content=content) if role == "assistant" else HumanMessage(content=content))
+    messages.append(HumanMessage(content=message))
+
+    raw = await _invoke(messages)
     text = raw if isinstance(raw, str) else str(raw)
     data = _extract_json(text)
     if not isinstance(data, dict):
