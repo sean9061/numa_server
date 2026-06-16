@@ -57,6 +57,17 @@ class AgentRuntime:
         else:
             log.info("提案なし thread=%s", thread_id)
 
+    # --- 1サイクル: クロール→返信案を逐次実行 ---
+    async def run_cycle(self) -> None:
+        """タスククロールと返信案生成を**逐次**実行する。
+
+        両者を同時に走らせると、リソース上限ギリギリのローカルLLM(35B MoE)へ
+        並行リクエストが飛びモデルランナーがクラッシュする(実機で確認)。
+        逐次化してモデルへの同時アクセスを避ける。
+        """
+        await self.run_crawl()
+        await self.run_drafts()  # draft_graph 未設定なら内部で即return
+
     # --- メール返信案 (読み取り専用・承認不要) ---
     async def run_drafts(self) -> None:
         if self.draft_graph is None:

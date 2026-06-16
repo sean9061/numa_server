@@ -8,6 +8,8 @@
   5-6. seen(由来ID記憶)の永続化・scope分離・reconcile除外
   7-8. メール返信案フロー (読み取り専用の生成 / 提示済みsource除外)
   9.   空き時間計算 (カレンダーから決定論的に空き枠を算出)
+  10.  RAG/Memory example層 (無効時の縮退 / 返信案フローへの配線: recall→payload, 生成後 remember)
+  11.  Memory directive層 (追加/領域分離/優先度/予算/永続/無効化 / reconcileへの常時注入)
 
 実行: docker run --rm -e DISCORD_BOT_TOKEN=x -e DISCORD_CHANNEL_ID=1 \
         -e DATA_DIR=/tmp -v $PWD/scripts:/app/scripts numa-agent python /app/scripts/smoke.py
@@ -145,7 +147,7 @@ async def main() -> None:
     seen_mod._caches.clear()
     seen_mod.mark([{"source": "gmail:seen1", "title": "既出"}], "rejected")
 
-    async def fake_gen(payload):
+    async def fake_gen(payload, extra_system=""):
         return [
             P(title="新規タスクA", reason="r", source="gmail:new1"),
             P(title="既出タスク", reason="r", source="gmail:seen1"),  # 記憶済み→除外される
@@ -176,7 +178,7 @@ async def main() -> None:
         return [{"source": "calendar:c1", "summary": "会議", "start": "2026-06-16T10:00:00+09:00",
                  "end": "2026-06-16T11:00:00+09:00"}]
 
-    async def fake_gen_suggest(payload):
+    async def fake_gen_suggest(payload, extra_system=""):
         captured_payload.update(payload)  # カレンダーが渡っているか検証用
         return [{"source": "gmail:r1", "body": "6/17(水)14:00はいかがでしょうか。", "reason": "日程調整の返信が必要"}]
 
@@ -199,6 +201,19 @@ async def main() -> None:
     assert rd2.get("suggestions", []) == [], rd2  # r1 は記憶済み→候補から除外
     print("[8] 返信案: 提示済みsource除外 OK")
 
+    # 8b. gather が候補数を draft_max_candidates で絞る (本文丸ごと渡す→num_ctx超過防止)
+    settings.data_dir = tempfile.mkdtemp()
+    seen_mod._caches.clear()
+    gmail_tool.fetch_reply_candidates = lambda: [
+        {"source": f"gmail:c{i}", "from": "a@b", "subject": "s", "body": "x"} for i in range(5)
+    ]
+    gcal_tool.fetch_upcoming = lambda: []
+    settings.draft_max_candidates = 2
+    out_g = await draft_graph.gather_node({})
+    assert len(out_g["candidates"]) == 2, out_g  # 5件→上限2件に制限
+    settings.draft_max_candidates = 4
+    print("[8b] 返信案: 候補数の上限制限 OK")
+
     # 9. 空き時間計算 (決定論): 予定を差し引いた実在の空き枠だけを返す
     import datetime as _dt
     from agent import availability
@@ -220,6 +235,116 @@ async def main() -> None:
     )
     assert any(f"6月15日({wd}) 09:00〜21:00" == s["label"] for s in slots3), slots3  # 透明予定は無視され丸ごと空き
     print("[9] 空き時間計算(決定論・終日/透明は除外) OK")
+
+    # 10. RAG/Memory (Phase 2b)
+    from agent import memory as memory_mod
+    # 無効時は安全に縮退 (chromadb/Ollama 不要で動くこと)
+    settings.memory_enabled = False
+    assert memory_mod.recall("なんでも") == []
+    memory_mod.remember([{"id": "x", "text": "y", "metadata": {}}])  # no-op (例外なし)
+    print("[10] memory: 無効時は recall=[]/remember=no-op OK")
+
+    # 返信案フローへのRAG配線: past_examples がプロンプトに乗り、生成後に remember される
+    settings.data_dir = tempfile.mkdtemp()
+    seen_mod._caches.clear()
+    recalled_for: list[str] = []
+    remembered: list[dict] = []
+
+    def fake_recall(query, namespace="draft", k=None):
+        recalled_for.append(query)
+        return [{"text": "件名: 過去の相談\n返信案:\n平素よりお世話になっております。", "metadata": {}, "distance": 0.1}]
+
+    def fake_remember(items, namespace="draft"):
+        remembered.extend(items)
+
+    captured2: dict = {}
+
+    def fake_candidates2():
+        return [{"source": "gmail:m1", "from": "hanako@example.com", "subject": "打合せ",
+                 "body": "来週ご都合いかがですか", "link": "https://mail/m1"}]
+
+    async def fake_gen2(payload, extra_system=""):
+        captured2.update(payload)
+        return [{"source": "gmail:m1", "body": "来週水曜はいかがでしょうか。", "reason": "日程調整"}]
+
+    memory_mod.recall = fake_recall
+    memory_mod.remember = fake_remember
+    gmail_tool.fetch_reply_candidates = fake_candidates2
+    gcal_tool.fetch_upcoming = lambda: []
+    draft_graph._generate_suggestions = fake_gen2
+
+    dg2 = draft_graph.build_draft_graph(MemorySaver())
+    rd3 = await dg2.ainvoke({}, {"configurable": {"thread_id": "ragcase"}})
+    assert rd3.get("suggestions") and rd3["suggestions"][0]["source"] == "gmail:m1", rd3
+    assert captured2["emails"][0].get("past_examples"), captured2["emails"][0]  # 過去事例が文脈に乗る
+    assert recalled_for, "recall が呼ばれていない"
+    assert remembered and remembered[0]["id"] == "gmail:m1", remembered  # 生成案を由来IDで記憶
+    print("[10] memory: 返信案フローへのRAG配線(recall→payload / 生成後remember) OK")
+
+    # 11. directive層 (常時注入のルール) + reconcileへの配線
+    settings.data_dir = tempfile.mkdtemp()
+    memory_mod._dir_cache = None
+    settings.memory_directive_budget = 15
+    assert memory_mod.directives_block("task") == ""  # 空なら無効果(後方互換)
+    d_task = memory_mod.add_directive("メルマガ由来は出さない", domain="task", priority=50)
+    memory_mod.add_directive("本名は伏せる", domain="global", priority=90)
+    memory_mod.add_directive("敬語は固め", domain="draft", priority=10)
+    block = memory_mod.directives_block("task")
+    assert "メルマガ由来は出さない" in block and "本名は伏せる" in block, block
+    assert "敬語は固め" not in block, block                            # 他領域(draft)は混ざらない
+    assert block.index("本名は伏せる") < block.index("メルマガ由来は出さない"), block  # 優先度降順
+    assert block.count("- (") == 2, block                             # global+task の2件
+    memory_mod._dir_cache = None                                      # 永続化(ディスクから再読込)
+    assert "メルマガ由来は出さない" in memory_mod.directives_block("task")
+    settings.memory_directive_budget = 1                              # 予算で件数制限
+    assert memory_mod.directives_block("task").count("- (") == 1
+    settings.memory_directive_budget = 15
+    assert memory_mod.deactivate_directive(d_task) is True            # 無効化(supersede)
+    assert "メルマガ由来は出さない" not in memory_mod.directives_block("task")
+    assert memory_mod.deactivate_directive(d_task) is False           # 二重無効化はFalse
+    print("[11] directive: 追加/領域分離/優先度/予算/永続/無効化 OK")
+
+    # reconcile が task方針を _generate_proposals に常時注入する
+    memory_mod.add_directive("通知メールは無視", domain="task", priority=100, id="t-test")
+    captured_sys: dict = {}
+
+    async def fake_gen3(payload, extra_system=""):
+        captured_sys["extra"] = extra_system
+        return []
+
+    graph._generate_proposals = fake_gen3
+    await real_reconcile_node({"emails": [], "events": [], "existing_tasks": []})
+    assert "通知メールは無視" in captured_sys.get("extra", ""), captured_sys
+    print("[11] directive: reconcileが方針を常時注入 OK")
+
+    # 12. run_cycle: クロール→返信案を逐次実行 (モデルへの並行リクエスト回避)
+    from agent.runtime import AgentRuntime
+    order: list[str] = []
+
+    class _FakeGraph:
+        async def ainvoke(self, *a, **k):
+            order.append("crawl")
+            return {"applied": []}
+
+    class _FakeDraftGraph:
+        async def ainvoke(self, *a, **k):
+            order.append("draft")
+            return {"suggestions": []}
+
+    class _FakeNotifier:
+        async def send_proposal(self, *a, **k): ...
+        async def send_applied(self, *a, **k): ...
+        async def send_suggestions(self, *a, **k): ...
+        async def send_text(self, *a, **k): ...
+
+    rt = AgentRuntime(_FakeGraph(), _FakeNotifier(), _FakeDraftGraph())
+    await rt.run_cycle()
+    assert order == ["crawl", "draft"], order  # 並行でなく crawl→draft の順
+    # draft_graph 未設定なら crawl のみ (draftはスキップ)
+    order.clear()
+    await AgentRuntime(_FakeGraph(), _FakeNotifier(), None).run_cycle()
+    assert order == ["crawl"], order
+    print("[12] run_cycle: クロール→返信案を逐次実行 OK")
 
     print("\nALL SMOKE TESTS PASSED ✅")
 

@@ -17,6 +17,7 @@ def make_llm(**kwargs) -> ChatOllama:
         "model": settings.agent_model,
         "temperature": 0,
         "num_ctx": settings.llm_num_ctx,
+        "keep_alive": settings.ollama_keep_alive,  # 既定"0"=毎回再ロード(SSM warm slotバグ回避)
     }
     params.update(kwargs)
     return ChatOllama(**params)

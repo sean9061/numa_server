@@ -27,7 +27,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
-from . import seen
+from . import memory, seen
 from .config import settings
 from .llm import make_llm
 from .tools import gcal, gmail, notion
@@ -125,17 +125,19 @@ def _to_proposals(data: Any) -> list["Proposal"]:
     return out
 
 
-async def _generate_proposals(payload: dict[str, Any]) -> list["Proposal"]:
+async def _generate_proposals(payload: dict[str, Any], extra_system: str = "") -> list["Proposal"]:
     """LLMにタスク抽出させ、寛容パースで Proposal 化する。空応答は数回リトライ。
 
     qwen3.6 等のローカル推論モデルは format制約(structured output)下でまれに空応答を返すため、
     通常生成 + 自前パースの方が安定する (生出力は信頼できることを実機で確認済み)。
     また reasoning=False で thinking を無効化する。有効だと <think> が生成バジェットを
     使い切り done_reason=length で本文が空になることがあるため (実機で確認済み)。
+    extra_system にはメモリ層の方針(directive)等を渡し、基本プロンプトの後ろに足す。
     """
     llm = make_llm(reasoning=False)
+    system = _SYSTEM_PROMPT + (f"\n\n{extra_system}" if extra_system else "")
     messages = [
-        SystemMessage(content=_SYSTEM_PROMPT),
+        SystemMessage(content=system),
         HumanMessage(content=json.dumps(payload, ensure_ascii=False, indent=2)),
     ]
     for attempt in range(1, 4):
@@ -208,7 +210,9 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
         "existing_tasks": [t["title"] for t in state.get("existing_tasks", [])],
         "max_proposals": settings.max_proposals_per_run,
     }
-    generated = await _generate_proposals(payload)
+    # メモリ層の方針(task領域+global)を常時注入し、ゴミ提案を抑制する
+    extra = await asyncio.to_thread(memory.directives_block, "task")
+    generated = await _generate_proposals(payload, extra_system=extra)
 
     # 締切の決定論的フォールバック用に、由来メール本文と予定開始日を引けるようにする
     today = dt.date.today()

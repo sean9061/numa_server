@@ -13,24 +13,15 @@ log = logging.getLogger("agent.scheduler")
 
 def make_scheduler(runtime: AgentRuntime) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
+    # クロールと返信案は1ジョブで逐次実行する(モデルへの並行リクエストを避ける)。
     scheduler.add_job(
-        runtime.run_crawl,
+        runtime.run_cycle,
         trigger="interval",
         minutes=settings.crawl_interval_min,
-        id="crawl",
+        id="cycle",
         max_instances=1,
         coalesce=True,
     )
-    if settings.draft_enabled:
-        scheduler.add_job(
-            runtime.run_drafts,
-            trigger="interval",
-            minutes=settings.crawl_interval_min,
-            id="drafts",
-            max_instances=1,
-            coalesce=True,
-        )
-        log.info("スケジューラ設定: %d分間隔でクロール＋返信案", settings.crawl_interval_min)
-    else:
-        log.info("スケジューラ設定: %d分間隔でクロール", settings.crawl_interval_min)
+    what = "クロール＋返信案" if settings.draft_enabled else "クロール"
+    log.info("スケジューラ設定: %d分間隔で%s(逐次)", settings.crawl_interval_min, what)
     return scheduler

@@ -128,11 +128,9 @@ class AgentBot(discord.Client):
         log.info("Discord ログイン: %s (id=%s)", self.user, getattr(self.user, "id", "?"))
         if settings.run_on_start and not self._ran_start and self.runtime is not None:
             self._ran_start = True
-            log.info("RUN_ON_START=true: 起動時クロールを実行")
-            asyncio.create_task(self.runtime.run_crawl())
-            if settings.draft_enabled:
-                log.info("DRAFT_ENABLED=true: 起動時に返信案も生成")
-                asyncio.create_task(self.runtime.run_drafts())
+            what = "クロール＋返信案" if settings.draft_enabled else "クロール"
+            log.info("RUN_ON_START=true: 起動時に%sを逐次実行", what)
+            asyncio.create_task(self.runtime.run_cycle())  # crawl→draft を逐次
 
     async def _channel(self) -> discord.abc.Messageable:
         ch = self.get_channel(settings.discord_channel_id)

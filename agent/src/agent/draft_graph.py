@@ -21,7 +21,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 
-from . import seen
+from . import memory, seen
 from .availability import free_slots
 from .config import settings
 from .graph import _extract_json
@@ -47,6 +47,8 @@ _SYSTEM_PROMPT = (
     "この中から『ユーザー本人が個人的に返信すべきメール』だけを選び、丁寧な日本語の返信案を作成してください。"
     "広告・通知・自動配信・採用案内・メルマガなど、返信が不要なものは絶対に含めないこと。"
     "返信は簡潔かつ礼儀正しく。"
+    "各メールに past_examples(過去に作成した類似の返信案)が付いている場合は、"
+    "その文体・敬語・署名・言い回しのトーンを踏襲して一貫性を保つこと。"
     "\n【日程調整の場合】free_slots は『予定が入っていない空き時間帯(レンジ)』の一覧です。"
     "提案する日時は必ずいずれかの free_slots の範囲内に完全に収まる時刻にすること"
     "(一覧に無い日や範囲外の時刻は絶対に提案しない)。範囲内であれば具体的な時刻(例:13:00〜13:30)を自由に切り出してよい。"
@@ -62,11 +64,15 @@ _SYSTEM_PROMPT = (
 )
 
 
-async def _generate_suggestions(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    """LLMに返信要否の判別と返信案生成をさせ、寛容パースで dict 配列にする。"""
+async def _generate_suggestions(payload: dict[str, Any], extra_system: str = "") -> list[dict[str, Any]]:
+    """LLMに返信要否の判別と返信案生成をさせ、寛容パースで dict 配列にする。
+
+    extra_system にはメモリ層の方針(directive)等を渡し、基本プロンプトの後ろに足す。
+    """
     llm = make_llm(reasoning=False)
+    system = _SYSTEM_PROMPT + (f"\n\n{extra_system}" if extra_system else "")
     messages = [
-        SystemMessage(content=_SYSTEM_PROMPT),
+        SystemMessage(content=system),
         HumanMessage(content=json.dumps(payload, ensure_ascii=False, indent=2)),
     ]
     for attempt in range(1, 4):
@@ -88,8 +94,14 @@ async def gather_node(state: DraftState) -> dict[str, Any]:
     )
     # すでに返信案を提示済みのメールは除外 (毎回の再提示を防ぐ)
     fresh = [c for c in candidates if not seen.is_seen(c.get("source"), scope="draft")]
-    log.info("gather: 候補 %d件 (記憶除外後 %d件) / 予定 %d件", len(candidates), len(fresh), len(events))
-    return {"candidates": fresh, "events": events}
+    # LLMへ渡す候補数を上限で絞る (本文を丸ごと渡すためプロンプト肥大→num_ctx超過を防ぐ)。
+    # あふれた分は記憶しないので次サイクル以降に回る。
+    capped = fresh[: settings.draft_max_candidates]
+    log.info(
+        "gather: 候補 %d件 (記憶除外後 %d件 → 上限 %d件に制限) / 予定 %d件",
+        len(candidates), len(fresh), len(capped), len(events),
+    )
+    return {"candidates": capped, "events": events}
 
 
 async def compose_node(state: DraftState) -> dict[str, Any]:
@@ -99,16 +111,26 @@ async def compose_node(state: DraftState) -> dict[str, Any]:
 
     now = dt.datetime.now(_JST)
     slots = free_slots(state.get("events", []), now)
+    # RAG(Phase 2b): 各メールに類似の過去返信例を付与 (MEMORY_ENABLED=false なら空で素通り)
+    emails_payload: list[dict[str, Any]] = []
+    for c in candidates:
+        item = {"source": c.get("source"), "from": c.get("from"),
+                "subject": c.get("subject"), "body": c.get("body")}
+        examples = await asyncio.to_thread(
+            memory.recall, f"{c.get('subject', '')} {(c.get('body') or '')[:500]}", "draft"
+        )
+        if examples:
+            item["past_examples"] = [ex["text"] for ex in examples]
+        emails_payload.append(item)
     payload = {
         "now": f"{now:%Y-%m-%d %H:%M}({_WD[now.weekday()]})",
         "free_slots": [s["label"] for s in slots],  # 決定論的に算出した実在の空き枠
-        "emails": [
-            {"source": c.get("source"), "from": c.get("from"), "subject": c.get("subject"), "body": c.get("body")}
-            for c in candidates
-        ],
+        "emails": emails_payload,
     }
     log.info("compose: 空き枠 %d件を提示", len(slots))
-    generated = await _generate_suggestions(payload)
+    # メモリ層の方針(draft領域+global)を常時注入し、文体・対応の一貫性を保つ
+    extra = await asyncio.to_thread(memory.directives_block, "draft")
+    generated = await _generate_suggestions(payload, extra_system=extra)
 
     by_source = {c.get("source"): c for c in candidates}
     suggestions: list[dict[str, Any]] = []
@@ -131,6 +153,21 @@ async def compose_node(state: DraftState) -> dict[str, Any]:
         )
         if len(suggestions) >= settings.draft_max_per_run:
             break
+
+    # RAG(Phase 2b): 今回の返信判断を記憶し、次回以降の文脈(文体の一貫性)に使う
+    if suggestions:
+        await asyncio.to_thread(
+            memory.remember,
+            [
+                {
+                    "id": s["source"],
+                    "text": f"件名: {s['subject']}\n返信案:\n{s['body']}",
+                    "metadata": {"source": s["source"], "subject": s["subject"], "to": s["to"]},
+                }
+                for s in suggestions
+            ],
+            "draft",
+        )
 
     log.info("compose: 返信案 %d件", len(suggestions))
     return {"suggestions": suggestions}
