@@ -346,6 +346,48 @@ async def main() -> None:
     assert order == ["crawl"], order
     print("[12] run_cycle: クロール→返信案を逐次実行 OK")
 
+    # 13. アシスタント(段階B): 既定は通常チャット、指示時のみメモリ操作 (LLMはスタブ)
+    from agent import librarian
+    settings.data_dir = tempfile.mkdtemp()
+    memory_mod._dir_cache = None
+    canned = {"text": ""}
+
+    async def fake_call(message, context):
+        return canned["text"]
+
+    librarian._call_llm = fake_call
+
+    # 通常の会話 → action=none で reply をそのまま返す(メモリ操作しない)
+    canned["text"] = '{"action":"none","reply":"こんにちは!何かお手伝いできますか?"}'
+    r0 = await librarian.respond("やあ")
+    assert r0["action"] == "none" and "こんにちは" in r0["reply"], r0
+    # JSONでない生テキスト → そのままチャット応答として扱う(普通に会話)
+    canned["text"] = "了解です。今日は晴れですね。"
+    rt = await librarian.respond("天気は?")
+    assert rt["action"] == "none" and rt["reply"] == "了解です。今日は晴れですね。", rt
+    # remember: domain正規化(不正→global)・空text除外・reply同梱
+    canned["text"] = (
+        '{"reply":"了解、覚えますね","action":"remember","directives":['
+        '{"text":"採用系メールからタスクを作らない","domain":"task"},'
+        '{"text":"私は就活中の情報系学生","domain":"へんなdomain"},'
+        '{"text":"   "}]}'
+    )
+    r = await librarian.respond("採用メールからタスク作らないで。あと私は就活中の情報系学生")
+    assert r["action"] == "remember" and len(r["directives"]) == 2, r
+    assert r["directives"][1]["domain"] == "global" and r["reply"], r  # 不正domain→global
+    # forget: 実在idのみ対象化
+    did = memory_mod.add_directive("採用系は不要", domain="task")
+    canned["text"] = f'{{"reply":"消しますね","action":"forget","targets":["{did}","存在しないid"]}}'
+    r2 = await librarian.respond("採用のやつ忘れて")
+    assert r2["action"] == "forget" and r2["targets"] == [did], r2
+    # list
+    canned["text"] = '{"action":"list","reply":"今の方針はこちら"}'
+    assert (await librarian.respond("何覚えてる?"))["action"] == "list"
+    # remember だが実体なし → none(普通の会話)に落とす
+    canned["text"] = '{"action":"remember","directives":[],"reply":"はい"}'
+    assert (await librarian.respond("覚えて"))["action"] == "none"
+    print("[13] アシスタント: 既定チャット/指示時のみメモリ操作 OK")
+
     print("\nALL SMOKE TESTS PASSED ✅")
 
 

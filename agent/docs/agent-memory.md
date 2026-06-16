@@ -1,6 +1,6 @@
 # エージェント・メモリ & 自然言語コントロールプレーン（設計）
 
-> ステータス: **段階A 実装済み（オフラインsmoke検証済み・未コミット）/ 段階B・C 未着手**。本書が設計の真実の源。
+> ステータス: **段階A 実装・実データ検証済み（コミット 9967d76）/ 段階B 実装・smoke検証済み（本番反映は要 Message Content Intent）/ 段階C 未着手**。本書が設計の真実の源。
 > 関連: `ROADMAP.md`（全体）, issue #59。既存の `src/agent/memory.py` がこの層の実体（directive層＋example層を統括）。
 >
 > **段階A の実装済み範囲**: `memory.py` に directive層（`add_directive`/`deactivate_directive`/`list_directives`/`directives`/`directives_block`）と `context()` を追加。`reconcile_node`・`compose_node` が起動時に `directives_block(domain)` を**常時注入**。初期方針は `scripts/seed_directives.py` で投入（固定id・冪等）。空なら無効果＝後方互換。smoke `[11]` で検証。
@@ -100,7 +100,7 @@ MemoryItem {
 
 ## 11. 段階計画
 - **A 土台** ✅ 実装済み(未コミット): directiveストア(`data/directives.json`) + `context()`/`directives_block()` + `reconcile`/`compose` への常時注入。初期ルールは `scripts/seed_directives.py` で手動seed。→ 「常時ルールが効くか」を先に確認。**残: 実データでのゴミタスク削減効果の検証**（seed投入＋本番クロールで before/after）。
-- **B 対話（Discord）**: 司書ステップ（learn/list/forget）＋確認HITL。フィードバック閉ループ完成。
+- **B 対話（Discord）** ✅ 実装済み(smoke検証): `librarian.interpret()`（会話→remember/forget/list/none）＋ `discordbot.on_message`＋ `_ConfirmView`（確認HITL）。司書はエージェント本体と同一プロセスのため directive 更新は `_dir_cache` 共有で**再起動なしに次回クロールへ反映**。`LIBRARIAN_ENABLED`(既定true)。**要 Message Content Intent**(未有効だとログイン不可)。**残: 本番での会話動作確認**。
 - **C 運用**: supersede・矛盾解消・予算/昇格降格・deterministic routing・コンパクション。
 
 ## 12. リスク・未解決

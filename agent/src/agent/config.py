@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # --- Discord (Phase 0 で必須) ---
     discord_bot_token: str
     discord_channel_id: int
+    # 司書(会話で方針をCRUD・段階B)。要 Message Content Intent (Developer Portal)。
+    librarian_enabled: bool = True
 
     # --- 動作設定 ---
     data_dir: str = "/app/data"
