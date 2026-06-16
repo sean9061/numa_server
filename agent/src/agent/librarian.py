@@ -32,24 +32,38 @@ _SYSTEM = (
     "少しでも迷うなら操作せず普通に会話する(むやみにメモリを書き換えない)。\n\n"
     "必ず次のJSONだけを返す(前後に説明文を付けない):\n"
     '{"reply": "ユーザーに見せる会話文(必須・日本語)", '
-    '"action": "none"|"remember"|"forget"|"list", '
+    '"action": "none"|"remember"|"forget"|"list"|"deny", '
     '"directives": [{"text": "方針/基本情報の一文", "domain": "global|task|draft|home"}], '
-    '"targets": ["忘れる対象のid"]}\n'
+    '"supersede": ["この記憶で置き換える既存方針のid"], '
+    '"targets": ["忘れる対象のid"], '
+    '"patterns": ["除外する送信元(メールアドレス/ドメイン)"]}\n'
     "- 通常の会話・質問・雑談 → action=\"none\"。reply で普通に答える。\n"
     "- 覚えて/変えて(方針・基本情報の追加変更) → action=\"remember\"、directives に入れる。"
-    "reply は『了解、こう覚えますね』等の一言。基本情報は domain=global。\n"
+    "reply は『了解、こう覚えますね』等の一言。基本情報は domain=global。"
+    "**下記『現在の方針』と重複・矛盾するものがあれば、その id を supersede に入れる**"
+    "(新しい記憶で古いものを置き換える)。\n"
+    "- 方針を整理して/まとめて → 現在の方針を統合・重複排除した新セットを directives に入れ、"
+    "置き換える古い id を全て supersede に入れた action=\"remember\" を返す。\n"
     "- 忘れて → action=\"forget\"、下記『現在の方針』の id を targets に。reply は一言。\n"
     "- 何覚えてる? → action=\"list\"。reply は一言。\n"
+    "- 特定の送信元(メールアドレス/ドメイン)からのメールを無視/タスク化しないでと言われたら → "
+    "あいまいな方針でなく確実な除外リストに入れる: action=\"deny\"、patterns にその送信元を入れる。\n"
     "domain: global=全般/基本情報, task=タスク抽出, draft=メール返信案, home=家電。"
 )
 
 
 def _directives_context() -> str:
     items = memory.list_directives()
-    if not items:
-        return "\n\n現在の方針: (なし)"
-    lines = "\n".join(f"- id={it['id']} ({it['domain']}) {it['text']}" for it in items)
-    return "\n\n現在の方針:\n" + lines
+    parts = []
+    if items:
+        lines = "\n".join(f"- id={it['id']} ({it['domain']}) {it['text']}" for it in items)
+        parts.append("現在の方針:\n" + lines)
+    else:
+        parts.append("現在の方針: (なし)")
+    denied = memory.list_denied()
+    if denied:
+        parts.append("現在の除外送信元(deny-list): " + ", ".join(denied))
+    return "\n\n" + "\n\n".join(parts)
 
 
 async def _invoke(messages: list[Any]) -> str:
@@ -80,28 +94,36 @@ async def respond(message: str, history: list[tuple[str, str]] | None = None) ->
                 "directives": [], "targets": []}
 
     action = data.get("action")
-    if action not in {"remember", "forget", "list", "none"}:
+    if action not in {"remember", "forget", "list", "deny", "none"}:
         action = "none"
     out: dict[str, Any] = {
         "action": action,
         "reply": str(data.get("reply") or "").strip(),
         "directives": [],
+        "supersede": [],
         "targets": [],
+        "patterns": [],
     }
+    valid_ids = {it["id"] for it in memory.list_directives()}
 
     if action == "remember":
         for d in data.get("directives") or []:
             if isinstance(d, dict) and str(d.get("text") or "").strip():
                 dom = d.get("domain") if d.get("domain") in VALID_DOMAINS else "global"
                 out["directives"].append({"text": str(d["text"]).strip(), "domain": dom})
+        out["supersede"] = [s for s in (data.get("supersede") or []) if s in valid_ids]
         if not out["directives"]:
             out["action"] = "none"  # 操作実体が無ければ普通の会話に落とす
     elif action == "forget":
-        valid = {it["id"] for it in memory.list_directives()}
-        out["targets"] = [t for t in (data.get("targets") or []) if t in valid]
+        out["targets"] = [t for t in (data.get("targets") or []) if t in valid_ids]
         if not out["targets"]:
             out["action"] = "none"
             out["reply"] = out["reply"] or "どの方針を忘れるか特定できませんでした。"
+    elif action == "deny":
+        out["patterns"] = [str(p).strip() for p in (data.get("patterns") or []) if str(p).strip()]
+        if not out["patterns"]:
+            out["action"] = "none"
+            out["reply"] = out["reply"] or "どの送信元を除外するか特定できませんでした。"
 
     if out["action"] == "none" and not out["reply"]:
         out["reply"] = "(応答を生成できませんでした)"

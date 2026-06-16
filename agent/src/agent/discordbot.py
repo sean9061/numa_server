@@ -144,7 +144,7 @@ class _ConfirmView(discord.ui.View):
         self.stop()
 
 
-def _build_directives_embed(items: list[dict[str, Any]]) -> discord.Embed:
+def _build_directives_embed(items: list[dict[str, Any]], denied: list[str] | None = None) -> discord.Embed:
     embed = discord.Embed(
         title="🧠 記憶している方針",
         description=f"{len(items)} 件" if items else "まだ何も覚えていません。",
@@ -152,7 +152,37 @@ def _build_directives_embed(items: list[dict[str, Any]]) -> discord.Embed:
     )
     for it in items:
         embed.add_field(name=f"({it['domain']}) p{it.get('priority', 0)}", value=it["text"], inline=False)
+    if denied:
+        embed.add_field(name="🚫 除外送信元 (deny-list)", value="\n".join(denied), inline=False)
     return embed
+
+
+# --- 方針の適用(確認ボタン押下後)。await をループで回す(ジェネレータ式内では不可) ---
+async def _apply_remember(dirs: list[dict[str, Any]], supersede: list[str]) -> str:
+    for d in dirs:
+        await asyncio.to_thread(memory.add_directive, d["text"], d["domain"], "directive", 100, "discord")
+    n_sup = 0
+    for s in supersede:
+        if await asyncio.to_thread(memory.deactivate_directive, s):
+            n_sup += 1
+    msg = f"✅ {len(dirs)}件を覚えました。次回クロールから反映されます。"
+    return msg + (f"(古い{n_sup}件を置き換え)" if n_sup else "")
+
+
+async def _apply_forget(targets: list[str]) -> str:
+    n = 0
+    for t in targets:
+        if await asyncio.to_thread(memory.deactivate_directive, t):
+            n += 1
+    return f"✅ {n}件を忘れました。"
+
+
+async def _apply_deny(patterns: list[str]) -> str:
+    n = 0
+    for p in patterns:
+        if await asyncio.to_thread(memory.add_denied, p):
+            n += 1
+    return f"✅ {n}件の送信元を除外リストに追加しました。次回クロールから除外します。"
 
 
 class AgentBot(discord.Client):
@@ -211,32 +241,38 @@ class AgentBot(discord.Client):
     async def _dispatch_chat(self, channel, result: dict[str, Any]) -> None:
         action = result.get("action")
         reply = result.get("reply") or ""
+        lead = f"{reply}\n\n" if reply else ""
         if action == "list":
             if reply:
                 await channel.send(reply)
-            await channel.send(embed=_build_directives_embed(memory.list_directives()))
+            await channel.send(embed=_build_directives_embed(memory.list_directives(), memory.list_denied()))
         elif action == "remember":
+            items = {it["id"]: it for it in memory.list_directives()}
             dirs = result["directives"]
+            supersede = result.get("supersede", [])
             summary = "\n".join(f"- ({d['domain']}) {d['text']}" for d in dirs)
-
-            async def _do():
-                for d in dirs:
-                    await asyncio.to_thread(memory.add_directive, d["text"], d["domain"], "directive", 100, "discord")
-                return f"✅ {len(dirs)}件を覚えました。次回クロールから反映されます。"
-
-            lead = f"{reply}\n\n" if reply else ""
-            await channel.send(f"{lead}次の内容を覚えます:\n{summary}", view=_ConfirmView(_do))
+            if supersede:  # 矛盾/重複する古い方針を同時に置き換える(段階C #1/#4)
+                old = "\n".join(f"- {items[s]['text']}" for s in supersede if s in items)
+                summary += f"\n伴って忘れる:\n{old}"
+            await channel.send(
+                f"{lead}次の内容を覚えます:\n{summary}",
+                view=_ConfirmView(lambda: _apply_remember(dirs, supersede)),
+            )
         elif action == "forget":
             items = {it["id"]: it for it in memory.list_directives()}
             targets = result["targets"]
             summary = "\n".join(f"- {items[t]['text']}" for t in targets if t in items)
-
-            async def _do():
-                n = sum(1 for t in targets if await asyncio.to_thread(memory.deactivate_directive, t))
-                return f"✅ {n}件を忘れました。"
-
-            lead = f"{reply}\n\n" if reply else ""
-            await channel.send(f"{lead}次の内容を忘れます:\n{summary}", view=_ConfirmView(_do))
+            await channel.send(
+                f"{lead}次の内容を忘れます:\n{summary}",
+                view=_ConfirmView(lambda: _apply_forget(targets)),
+            )
+        elif action == "deny":  # 送信元の確実な除外(段階C #3 deterministic routing)
+            patterns = result["patterns"]
+            summary = "\n".join(f"- {p}" for p in patterns)
+            await channel.send(
+                f"{lead}次の送信元からのメールを除外します:\n{summary}",
+                view=_ConfirmView(lambda: _apply_deny(patterns)),
+            )
         else:  # none = 通常のチャット応答
             await channel.send(reply or "(応答を生成できませんでした)")
 

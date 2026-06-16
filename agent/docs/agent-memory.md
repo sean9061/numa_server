@@ -1,6 +1,6 @@
 # エージェント・メモリ & 自然言語コントロールプレーン（設計）
 
-> ステータス: **段階A 実装・実データ検証済み（コミット 9967d76）/ 段階B 実装・smoke検証済み（本番反映は要 Message Content Intent）/ 段階C 未着手**。本書が設計の真実の源。
+> ステータス: **段階A・B・C すべて実装・本番反映済み**（A=9967d76, B=6dd84e7+954346a, C=本コミット）。段階Bは要 Message Content Intent。本書が設計の真実の源。
 > 関連: `ROADMAP.md`（全体）, issue #59。既存の `src/agent/memory.py` がこの層の実体（directive層＋example層を統括）。
 >
 > **段階A の実装済み範囲**: `memory.py` に directive層（`add_directive`/`deactivate_directive`/`list_directives`/`directives`/`directives_block`）と `context()` を追加。`reconcile_node`・`compose_node` が起動時に `directives_block(domain)` を**常時注入**。初期方針は `scripts/seed_directives.py` で投入（固定id・冪等）。空なら無効果＝後方互換。smoke `[11]` で検証。
@@ -101,7 +101,7 @@ MemoryItem {
 ## 11. 段階計画
 - **A 土台** ✅ 実装済み(未コミット): directiveストア(`data/directives.json`) + `context()`/`directives_block()` + `reconcile`/`compose` への常時注入。初期ルールは `scripts/seed_directives.py` で手動seed。→ 「常時ルールが効くか」を先に確認。**残: 実データでのゴミタスク削減効果の検証**（seed投入＋本番クロールで before/after）。
 - **B 対話（Discord）** ✅ 実装・本番反映済み: `librarian.respond()`（**基本は通常チャット**、指示時のみ remember/forget/list）＋ `discordbot.on_message`＋ `_ConfirmView`（確認HITL）。**短期会話セッション**（channel単位・`SESSION_IDLE_MIN`=5分 無応答でリセット・プロセス内のみ）で多ターンの文脈を保持。司書はエージェント本体と同一プロセスのため directive 更新は `_dir_cache` 共有で**再起動なしに次回クロールへ反映**。`LIBRARIAN_ENABLED`(既定true)。**要 Message Content Intent**。
-- **C 運用**: supersede・矛盾解消・予算/昇格降格・deterministic routing・コンパクション。
+- **C 運用** ✅ 実装・本番反映済み: ①矛盾の自動supersede（remember時に司書が重複/矛盾idを `supersede` で返し、確認後 `deactivate_directive`）②使用追跡＋予算降格（`directives()`が use_count/last_used を記録・優先度→最近使用順で予算内を選択、超過分はRAG有効時 example層へ降格）③deterministic routing（送信元指定は `data/denylist.json`＝`add_denied`/`is_denied`/`filter_denied`、crawl/draft が From で除外。司書 action="deny"）④コンパクション（「整理して」→司書が統合directives＋全置換supersede を remember で返す）。smoke `[14]`。**残: 利用ログに基づく自動昇格・効果測定は未実装（手動/会話で運用）**。
 
 ## 12. リスク・未解決
 - **常時ルールの予算と無視問題**: 件数が増えるとコンテキストを食い、ローカルLLMが一部を無視/矛盾。予算・優先度・降格が要。

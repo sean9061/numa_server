@@ -399,6 +399,69 @@ async def main() -> None:
     assert msgs[-1].content == "3つ目は?", msgs
     print("[13b] 短期会話メモリ: 履歴がプロンプトに含まれる OK")
 
+    # 14. 段階C: supersede(#1/#4) / deny-list(#3) / 使用追跡・予算降格(#2)
+    settings.data_dir = tempfile.mkdtemp()
+    memory_mod._dir_cache = None
+    memory_mod._deny_cache = None
+    settings.memory_directive_budget = 15
+    settings.memory_enabled = False
+
+    # #1 supersede: respond の supersede は実在idのみに正規化、適用で置き換え
+    old_id = memory_mod.add_directive("古い方針", domain="task")
+    canned["text"] = (
+        '{"action":"remember","reply":"更新します",'
+        '"directives":[{"text":"新しい方針","domain":"task"}],'
+        f'"supersede":["{old_id}","存在しない"]}}'
+    )
+    rc = await librarian.respond("方針を更新して")
+    assert rc["action"] == "remember" and rc["supersede"] == [old_id], rc
+    memory_mod.add_directive(rc["directives"][0]["text"], rc["directives"][0]["domain"])
+    assert memory_mod.deactivate_directive(rc["supersede"][0]) is True
+    titles = [d["text"] for d in memory_mod.list_directives(domain="task")]
+    assert "新しい方針" in titles and "古い方針" not in titles, titles
+    print("[14] 段階C supersede: 矛盾する古い方針を置き換え OK")
+
+    # #3 deny-list: respond action=deny → patterns、filter_denied で送信元除外
+    canned["text"] = '{"action":"deny","reply":"除外します","patterns":["spam@x.com","ads.example"]}'
+    rd = await librarian.respond("spam@x.com は無視して")
+    assert rd["action"] == "deny" and "spam@x.com" in rd["patterns"], rd
+    memory_mod.add_denied("spam@x.com")
+    assert memory_mod.is_denied("Foo <spam@x.com>") and not memory_mod.is_denied("a@b.com")
+    assert memory_mod.filter_denied([{"from": "spam@x.com"}, {"from": "ok@y.com"}]) == [{"from": "ok@y.com"}]
+    print("[14] 段階C deny-list: 送信元の確実な除外 OK")
+
+    # #2 使用追跡・予算降格: directives() が use_count/last_used を更新し予算内のみ返す
+    settings.data_dir = tempfile.mkdtemp()
+    memory_mod._dir_cache = None
+    gid = memory_mod.add_directive("方針X", domain="task")
+    memory_mod.directives("task")
+    got = {it["id"]: it for it in memory_mod.list_directives()}[gid]
+    assert got.get("use_count", 0) >= 1 and got.get("last_used"), got
+    settings.memory_directive_budget = 1
+    for i in range(3):
+        memory_mod.add_directive(f"方針{i}", domain="task", priority=i)
+    assert len(memory_mod.directives("task")) == 1, "予算超過分は返さない"
+    settings.memory_directive_budget = 15
+    print("[14] 段階C 使用追跡/予算: OK")
+
+    # 14b. discordの確認ボタン適用ロジック(await をループで回す: ジェネレータ式バグの回帰防止)
+    from agent import discordbot
+    settings.data_dir = tempfile.mkdtemp()
+    memory_mod._dir_cache = None
+    memory_mod._deny_cache = None
+    keep = memory_mod.add_directive("残す方針", domain="task")
+    drop = memory_mod.add_directive("消す方針", domain="task")
+    msg = await discordbot._apply_remember([{"text": "新方針", "domain": "global"}], [drop])
+    assert "1件を覚え" in msg and "置き換え" in msg, msg
+    active = [d["text"] for d in memory_mod.list_directives(domain="task")] + \
+             [d["text"] for d in memory_mod.list_directives(domain="global")]
+    assert "新方針" in active and "消す方針" not in active and "残す方針" in active, active
+    msg2 = await discordbot._apply_forget([keep])
+    assert "1件を忘れ" in msg2, msg2
+    msg3 = await discordbot._apply_deny(["spam@x.com", "spam@x.com"])  # 重複は1件
+    assert "1件" in msg3 and memory_mod.is_denied("a <spam@x.com>"), msg3
+    print("[14b] 段階C 適用ロジック(remember/forget/deny)実行 OK")
+
     print("\nALL SMOKE TESTS PASSED ✅")
 
 

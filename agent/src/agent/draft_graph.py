@@ -92,6 +92,7 @@ async def gather_node(state: DraftState) -> dict[str, Any]:
         asyncio.to_thread(gmail.fetch_reply_candidates),
         asyncio.to_thread(gcal.fetch_upcoming),  # 日程調整の返信で空き時間を埋めるため
     )
+    candidates = memory.filter_denied(candidates)  # deny-list の送信元は除外(段階C)
     # すでに返信案を提示済みのメールは除外 (毎回の再提示を防ぐ)
     fresh = [c for c in candidates if not seen.is_seen(c.get("source"), scope="draft")]
     # LLMへ渡す候補数を上限で絞る (本文を丸ごと渡すためプロンプト肥大→num_ctx超過を防ぐ)。

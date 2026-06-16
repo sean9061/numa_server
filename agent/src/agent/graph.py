@@ -199,6 +199,7 @@ async def crawl_node(state: AgentState) -> dict[str, Any]:
         asyncio.to_thread(gcal.fetch_upcoming),
         asyncio.to_thread(notion.list_tasks),
     )
+    emails = memory.filter_denied(emails)  # deny-list の送信元は除外(段階C)
     return {"emails": emails, "events": events, "existing_tasks": existing}
 
 

@@ -204,10 +204,45 @@ def list_directives(domain: str | None = None, include_inactive: bool = False) -
     return out
 
 
+def _mark_directives_used(ids: list[str]) -> None:
+    """注入した方針の使用回数・最終使用時刻を更新する(段階C: 昇格降格の素材)。"""
+    if not ids:
+        return
+    now = dt.datetime.now(dt.timezone.utc).isoformat()
+    with _dir_lock:
+        store = _dir_load()
+        changed = False
+        for did in ids:
+            it = store.get(did)
+            if it:
+                it["use_count"] = it.get("use_count", 0) + 1
+                it["last_used"] = now
+                changed = True
+        if changed:
+            _dir_save(store)
+
+
 def directives(domain: str) -> list[dict[str, Any]]:
-    """global + 指定domain の active な方針を優先度順・予算内で返す。"""
+    """global+domain の active を 優先度→最近使用→新しさ で並べ、予算内を返す。
+
+    段階C: 返した分は使用済みとして記録(昇格降格の素材)。予算超過分は RAG有効時のみ
+    example層へ降格し、context() の recall で関連時に拾えるようにする(無効時は単に不採用)。
+    """
     items = [it for it in list_directives() if it.get("domain") in ("global", domain)]
-    return items[: settings.memory_directive_budget]
+    items.sort(key=lambda x: (x.get("priority", 0), x.get("last_used") or "", x.get("ts") or ""), reverse=True)
+    budget = settings.memory_directive_budget
+    top, overflow = items[:budget], items[budget:]
+    _mark_directives_used([it["id"] for it in top])
+    if overflow and settings.memory_enabled:
+        try:  # 予算超過分は RAG へ降格(関連時に recall される)
+            remember(
+                [{"id": f"dir:{it['id']}", "text": it["text"],
+                  "metadata": {"domain": it["domain"], "demoted": True}} for it in overflow],
+                namespace=domain,
+            )
+        except Exception:
+            log.exception("directive降格(RAG)に失敗")
+    return top
 
 
 def directives_block(domain: str) -> str:
@@ -233,3 +268,82 @@ def context(domain: str, query: str = "") -> str:
         ex = "\n".join(f"- {e['text']}" for e in examples)
         parts.append("【関連する過去の事例(参考)】\n" + ex)
     return "\n\n".join(parts)
+
+
+# =========================================================
+#  deny-list (deterministic routing・段階C §8) — data/denylist.json: ["pattern", ...]
+#  「送信元Xからのメールは無視」のような構造化できる指示は、あいまいな directive でなく
+#  確実な deny-list に落とす。crawl/draft がメールの From をこれと突合して除外する。
+# =========================================================
+
+_deny_cache: list[str] | None = None
+
+
+def _deny_path() -> str:
+    return os.path.join(settings.data_dir, "denylist.json")
+
+
+def _deny_load() -> list[str]:
+    global _deny_cache
+    if _deny_cache is None:
+        try:
+            with open(_deny_path(), encoding="utf-8") as f:
+                data = json.load(f)
+            _deny_cache = [str(p).lower() for p in data if str(p).strip()]
+        except (FileNotFoundError, json.JSONDecodeError):
+            _deny_cache = []
+    return _deny_cache
+
+
+def _deny_save(patterns: list[str]) -> None:
+    os.makedirs(settings.data_dir, exist_ok=True)
+    tmp = _deny_path() + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(patterns, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, _deny_path())
+
+
+def add_denied(pattern: str) -> bool:
+    """送信元パターン(メールアドレス/ドメイン等の部分文字列)を deny-list に追加。"""
+    p = (pattern or "").strip().lower()
+    if not p:
+        return False
+    with _dir_lock:
+        patterns = _deny_load()
+        if p in patterns:
+            return False
+        patterns.append(p)
+        _deny_save(patterns)
+    log.info("denylist: 追加 '%s'", p)
+    return True
+
+
+def remove_denied(pattern: str) -> bool:
+    p = (pattern or "").strip().lower()
+    with _dir_lock:
+        patterns = _deny_load()
+        if p not in patterns:
+            return False
+        patterns.remove(p)
+        _deny_save(patterns)
+    return True
+
+
+def list_denied() -> list[str]:
+    return list(_deny_load())
+
+
+def is_denied(from_header: str | None) -> bool:
+    low = (from_header or "").lower()
+    return any(p in low for p in _deny_load())
+
+
+def filter_denied(emails: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """From が deny-list に該当するメールを除外する。"""
+    patterns = _deny_load()
+    if not patterns:
+        return emails
+    kept = [e for e in emails if not is_denied(e.get("from", ""))]
+    if len(kept) != len(emails):
+        log.info("denylist: %d件を除外", len(emails) - len(kept))
+    return kept
