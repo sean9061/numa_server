@@ -142,12 +142,40 @@ Internet
 
 ---
 
+### 6. Agent (`agent/`)
+
+ローカルLLM自律エージェント (Python + LangGraph)。詳細・進捗は **`agent/ROADMAP.md`** / issue #59。
+
+| 項目 | 内容 |
+|------|------|
+| イメージ | `numa-agent` (Python, ローカルビルド) |
+| 役割 | Gmail(読取専用)+Calendar→LLM突合→Notion タスク反映 / メール返信案の提示(読取専用) |
+| 推論 | Ollama `qwen3.6:35b-a3b`(`ollama:11434`) |
+| 通知・承認 | Discord (HITL) |
+| クロール | `CRAWL_HOURS` の時刻指定(cron, 既定1日7回)。`ORCHESTRATOR_ENABLED`(計画→逐次実行→統合)・`WEB_RESEARCH_ENABLED`(Webリサーチ) で機能拡張 (#62) |
+| ネットワーク | `ollama_net` のみ (ホストポート非公開・Docker socket/ホストFS非マウント) |
+| 環境変数 | `agent/.env` (Discord/Google/Notion 等・gitignore対象) |
+
+### 7. SearXNG (`searxng/`)
+
+agent の Web リサーチ用メタ検索 (JSON API)。
+
+| 項目 | 内容 |
+|------|------|
+| イメージ | `searxng/searxng` |
+| 役割 | `web_research` サブタスクが叩く検索API (検索→要約の材料) |
+| 公開 | **なし。内部専用** (agent からのみ到達・NPM非経由) |
+| ネットワーク | `ollama_net` (ホストポート非公開) |
+| 設定 | `searxng/settings.yml` — JSON出力ON。**Google は自ホストブロック対策で無効化**し DuckDuckGo/Brave/Startpage 等を使用。limiter off (Valkey不要) |
+
+---
+
 ## ネットワーク構成 (Network)
 
 | ネットワーク | 種別 | 接続サービス | 用途 |
 |---|---|---|---|
 | `proxy_net` | 外部 (手動作成) | Nginx Proxy Manager, Portfolio, Dashboard, Open WebUI | サービス間通信・プロキシルーティング |
-| `ollama_net` | 外部 (手動作成) | Nginx Proxy Manager, Ollama, Open WebUI | Ollama専用経路 (Portfolio等から隔離) |
+| `ollama_net` | 外部 (手動作成) | Nginx Proxy Manager, Ollama, Open WebUI, Agent, SearXNG | Ollama専用経路 (Portfolio等から隔離) |
 | `default` | 内部ブリッジ (自動) | Nginx app ↔ MariaDB | DBアクセス専用 |
 
 **ポート一覧:**
@@ -162,6 +190,8 @@ Internet
 | Open WebUI | 8080 | 非公開 | HTTP | Web UI (proxy_net経由) |
 | Ollama | 11434 | 非公開 | HTTP | LLM API (ollama_net経由) |
 | Dashboard | 3000 | `127.0.0.1:8088` | HTTP | 監視ダッシュボード (Tailscale serve 経由・インターネット非公開) |
+| SearXNG | 8080 | 非公開 | HTTP | メタ検索 (ollama_net内部・agent専用) |
+| Agent | — | 非公開 | — | LLMエージェント (ホストポートなし・ollama_net内部) |
 
 ---
 
@@ -204,6 +234,16 @@ numa_server/
 │   │   ├── metrics.js        # システムメトリクス収集
 │   │   └── docker-monitor.js # Dockerコンテナ監視
 │   └── public/               # フロントエンド (HTML/CSS/JS)
+├── agent/                    # ローカルLLM自律エージェント (Python + LangGraph)
+│   ├── compose.yaml
+│   ├── Dockerfile
+│   ├── ROADMAP.md            # エージェントの方針・進捗 (真実の源)
+│   ├── .env / .env.example   # Discord/Google/Notion 等 (gitignore対象)
+│   ├── src/agent/            # graph / orchestrator / draft_graph / memory / tools 等
+│   └── data/                 # checkpoints.sqlite・OAuthトークン (gitignore対象)
+├── searxng/                  # メタ検索 (agent の Web リサーチ用・内部専用)
+│   ├── compose.yaml
+│   └── settings.yml          # JSON出力ON・Google無効
 ├── CLAUDE.md                 # Claude Code向けガイド
 └── README.md                 # このファイル
 ```
@@ -224,6 +264,8 @@ numa_server/
 | 3Dグラフィクス | Three.js, React Three Fiber |
 | アニメーション | Framer Motion |
 | 監視ダッシュボード | Node.js 20, Express, WebSocket, Chart.js |
+| LLMエージェント | Python, LangGraph, discord.py (Gmail/Calendar/Notion 連携) |
+| メタ検索 | SearXNG (agent の Web リサーチ用・内部専用) |
 | ランタイム | Node.js 20 (Alpine) |
 
 ---
