@@ -38,11 +38,18 @@ def _to_busy_interval(start: str, end: str) -> tuple[dt.datetime, dt.datetime] |
     return None
 
 
-def free_slots(events: list[dict], now: dt.datetime | None = None) -> list[dict]:
+def free_slots(
+    events: list[dict],
+    now: dt.datetime | None = None,
+    range_start: dt.date | None = None,
+    range_end: dt.date | None = None,
+) -> list[dict]:
     """events(各 start/end を持つ)から、今後の空き時間帯を計算して返す。
 
     返り値: [{"start": ISO, "end": ISO, "label": "6月17日(水) 10:00〜12:00"}, ...]
     営業時間(既定 平日9:00〜21:00)内で、予定と重複しない min 分以上の連続空きを列挙する。
+    range_start/range_end を渡すとその日付範囲(両端含む・過去は now まで切り上げ)に絞る。
+    どちらも None なら従来どおり今日から avail_days 先まで(後方互換)。
     """
     now = now or dt.datetime.now(_JST)
     # busy とみなすのは「時刻付き」かつ transparency!=transparent の予定のみ。
@@ -58,9 +65,20 @@ def free_slots(events: list[dict], now: dt.datetime | None = None) -> list[dict]
         if iv
     )
 
+    # 走査対象の日付一覧を決める
+    if range_start or range_end:
+        start_date = max(now.date(), range_start or now.date())
+        end_date = range_end or (now.date() + dt.timedelta(days=settings.avail_days))
+        days: list[dt.date] = []
+        d = start_date
+        while d <= end_date:
+            days.append(d)
+            d += dt.timedelta(days=1)
+    else:
+        days = [(now + dt.timedelta(days=o)).date() for o in range(settings.avail_days + 1)]
+
     slots: list[dict] = []
-    for offset in range(settings.avail_days + 1):
-        day = (now + dt.timedelta(days=offset)).date()
+    for day in days:
         if settings.avail_weekdays_only and day.weekday() >= 5:
             continue
         win_start = dt.datetime.combine(day, dt.time(settings.avail_day_start), _JST)

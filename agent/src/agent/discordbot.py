@@ -6,16 +6,112 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 import logging
 import time
 from typing import Any
 
 import discord
 
-from . import librarian, memory
+from . import availability, librarian, memory
 from .config import settings
+from .tools import gcal
 
 log = logging.getLogger("agent.discord")
+
+_JST = dt.timezone(dt.timedelta(hours=9))
+_WD = ("月", "火", "水", "木", "金", "土", "日")
+_MAX_EVENTS = 25  # Discord メッセージ長対策
+
+
+def _fmt_range(range_start: dt.date | None, range_end: dt.date | None) -> str:
+    if range_start and range_end:
+        return f"{range_start.month}/{range_start.day}〜{range_end.month}/{range_end.day}"
+    if range_start:
+        return f"{range_start.month}/{range_start.day}以降"
+    if range_end:
+        return f"{range_end.month}/{range_end.day}まで"
+    return "今後"
+
+
+def _event_label(ev: dict[str, Any]) -> str:
+    start = ev.get("start", "") or ""
+    summary = ev.get("summary", "(無題の予定)")
+    if "T" in start:
+        try:
+            s = dt.datetime.fromisoformat(start.replace("Z", "+00:00")).astimezone(_JST)
+            when = f"{s.month}月{s.day}日({_WD[s.weekday()]}) {s:%H:%M}"
+        except ValueError:
+            when = start[:16]
+    elif start:
+        try:
+            d = dt.date.fromisoformat(start[:10])
+            when = f"{d.month}月{d.day}日({_WD[d.weekday()]}) 終日"
+        except ValueError:
+            when = start[:10]
+    else:
+        when = "?"
+    return f"{when} {summary}"
+
+
+def _event_detail(ev: dict[str, Any]) -> str:
+    """推論回答用に、取得できた有用な情報を全部含めた1件の説明文を作る(空欄は省く)。"""
+    parts = [_event_label(ev)]
+    if ev.get("location"):
+        parts.append(f"場所: {ev['location']}")
+    if ev.get("conference_url"):
+        parts.append(f"会議URL: {ev['conference_url']}")
+    att = [a for a in (ev.get("attendees") or []) if a]
+    if att:
+        shown = "、".join(att[:10]) + (f" ほか{len(att) - 10}名" if len(att) > 10 else "")
+        parts.append(f"参加者: {shown}")
+    if ev.get("organizer"):
+        parts.append(f"主催: {ev['organizer']}")
+    if ev.get("description"):
+        parts.append(f"メモ: {ev['description']}")
+    if ev.get("link"):
+        parts.append(f"リンク: {ev['link']}")
+    return " ｜ ".join(parts)
+
+
+def _format_free_slots(slots: list[dict], range_start: dt.date | None, range_end: dt.date | None) -> str:
+    rng = _fmt_range(range_start, range_end)
+    if not slots:
+        return f"🗓️ {rng}の空き時間は見つかりませんでした（平日{settings.avail_day_start}:00〜{settings.avail_day_end}:00で予定が埋まっています）。"
+    lines = "\n".join(f"• {s['label']}" for s in slots)
+    return f"🗓️ {rng}の空き時間（平日{settings.avail_day_start}:00〜{settings.avail_day_end}:00）:\n{lines}"
+
+
+def _events_in_range(events: list[dict], range_start: dt.date | None, range_end: dt.date | None) -> list[dict]:
+    if not (range_start or range_end):
+        return events
+
+    def ok(ev: dict[str, Any]) -> bool:
+        s = (ev.get("start") or "")[:10]
+        if not s:
+            return False
+        try:
+            d = dt.date.fromisoformat(s)
+        except ValueError:
+            return False
+        if range_start and d < range_start:
+            return False
+        if range_end and d > range_end:
+            return False
+        return True
+
+    return [e for e in events if ok(e)]
+
+
+def _format_events(events: list[dict], range_start: dt.date | None, range_end: dt.date | None) -> str:
+    evs = _events_in_range(events, range_start, range_end)
+    rng = _fmt_range(range_start, range_end)
+    if not evs:
+        return f"🗓️ {rng}の予定はありません。"
+    shown = evs[:_MAX_EVENTS]
+    lines = "\n".join(f"• {_event_label(e)}" for e in shown)
+    more = f"\n…ほか{len(evs) - len(shown)}件" if len(evs) > len(shown) else ""
+    return f"🗓️ {rng}の予定:\n{lines}{more}"
 
 
 class ProposalButton(
@@ -236,9 +332,9 @@ class AgentBot(discord.Client):
         sess["history"] += [("user", content), ("assistant", result.get("reply") or "")]
         sess["history"] = sess["history"][-settings.session_max_messages:]
         sess["last"] = time.monotonic()
-        await self._dispatch_chat(message.channel, result)
+        await self._dispatch_chat(message.channel, result, content)
 
-    async def _dispatch_chat(self, channel, result: dict[str, Any]) -> None:
+    async def _dispatch_chat(self, channel, result: dict[str, Any], question: str = "") -> None:
         action = result.get("action")
         reply = result.get("reply") or ""
         lead = f"{reply}\n\n" if reply else ""
@@ -273,8 +369,53 @@ class AgentBot(discord.Client):
                 f"{lead}次の送信元からのメールを除外します:\n{summary}",
                 view=_ConfirmView(lambda: _apply_deny(patterns)),
             )
+        elif action == "calendar":  # カレンダー照会(空き時間/予定)。読み取り専用・HITL不要
+            if reply:
+                await channel.send(reply)
+            await self._send_calendar(result, question)
         else:  # none = 通常のチャット応答
             await channel.send(reply or "(応答を生成できませんでした)")
+
+    async def _send_calendar(self, result: dict[str, Any], question: str = "") -> None:
+        """カレンダーを取得し、確定スケジュールを根拠に**質問へ推論で答える**。
+
+        空き枠・予定は決定論的に算出し(時刻の幻覚を防ぐ)、その確定情報＋元の質問を
+        LLMに渡して「一番負担がない日は?」等の判断質問にも答えさせる。
+        LLM失敗時は決定論的な一覧ダンプにフォールバックする。
+        """
+        ch = await self._channel()
+        mode = result.get("mode", "free")
+        rs = result.get("range_start")
+        re_ = result.get("range_end")
+        range_start = dt.date.fromisoformat(rs) if rs else None
+        range_end = dt.date.fromisoformat(re_) if re_ else None
+        # 範囲が既定の lookahead より先まで及ぶなら取得日数を広げる
+        days = None
+        if range_end:
+            need = (range_end - dt.date.today()).days + 1
+            if need > settings.calendar_lookahead_days:
+                days = need
+        try:
+            # detailed=True: 場所/会議URL/参加者/主催/説明も取得し、聞かれたら答えられるようにする
+            events = await asyncio.to_thread(gcal.fetch_upcoming, days, True)
+        except Exception:
+            log.exception("カレンダー照会: 予定取得に失敗")
+            await ch.send("⚠️ カレンダーの取得に失敗しました。")
+            return
+        # 判断材料: 範囲内の全予定(週末・終日含む・詳細付き) ＋ 空き枠(平日日中)。両方をLLMに渡す。
+        events_in_range = _events_in_range(events, range_start, range_end)
+        slots = await asyncio.to_thread(availability.free_slots, events, None, range_start, range_end)
+        event_labels = [_event_detail(e) for e in events_in_range]
+        slot_labels = [s["label"] for s in slots]
+        answer = ""
+        try:
+            answer = await librarian.answer_calendar(question, event_labels, slot_labels)
+        except Exception:
+            log.exception("カレンダー照会: 回答生成に失敗")
+        if not answer:  # フォールバック: 決定論的な一覧
+            answer = _format_events(events, range_start, range_end) if mode == "events" \
+                else _format_free_slots(slots, range_start, range_end)
+        await ch.send(answer)
 
     async def _channel(self) -> discord.abc.Messageable:
         ch = self.get_channel(settings.discord_channel_id)
