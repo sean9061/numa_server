@@ -28,8 +28,19 @@ class Settings(BaseSettings):
 
     # --- 動作設定 ---
     data_dir: str = "/app/data"
+    # クロールの実行タイミング。CRAWL_HOURS を設定すると「時刻指定(cron)」になり、
+    # 指定した各時刻(時)の CRAWL_MINUTE 分に実行する(例 "3,12,18" = 深夜3時+昼12時+夜18時)。
+    # 無駄な電力を避けるため日中数回+夜間1回など疎な運用にできる。
+    # 空("")のときは従来どおり crawl_interval_min の固定インターバルで動く(後方互換)。
+    crawl_hours: str = "1,5,9,12,15,18,21"  # 1日7回(夜間2回+日中5回)。空ならインターバル方式
+    crawl_minute: int = 0      # 各時刻の何分に実行するか (cron 方式時のみ有効)
     crawl_interval_min: int = 30
     max_proposals_per_run: int = 10
+    # --- マネージャ・オーケストレータ (#62 段階2) ---
+    # true: 1クロールを「計画→逐次実行→統合」に再構成(コンテキスト分割)。false: 従来の一括reconcile。
+    orchestrator_enabled: bool = False
+    orchestrator_max_subtasks: int = 20   # マネージャが書き出すサブタスクの上限
+    orchestrator_batch_size: int = 3      # inspect_email 1呼び出しで精査するメール件数(満溢回避)
     run_on_start: bool = True
     # タスク追加は低リスクなので既定で承認不要(直接Notionへ挿入し結果のみ通知)。
     # true にすると従来通り Discord ボタンでの承認を挟む。

@@ -9,6 +9,7 @@ from .config import settings
 from .discordbot import AgentBot
 from .draft_graph import build_draft_graph
 from .graph import build_graph
+from .orchestrator import build_orchestrator_graph
 from .runtime import AgentRuntime
 from .scheduler import make_scheduler
 
@@ -24,7 +25,13 @@ async def main() -> None:
 
     bot = AgentBot()
     checkpointer = await make_checkpointer()
-    graph = build_graph(checkpointer)
+    # ORCHESTRATOR_ENABLED 時はマネージャ・オーケストレータ(計画→逐次実行→統合)、
+    # 既定は従来の一括 reconcile グラフ。どちらも proposals/applied/__interrupt__ を同形で返す。
+    if settings.orchestrator_enabled:
+        log.info("クロール: マネージャ・オーケストレータ(#62 段階2)を使用")
+        graph = build_orchestrator_graph(checkpointer)
+    else:
+        graph = build_graph(checkpointer)
     draft_graph = build_draft_graph(checkpointer) if settings.draft_enabled else None
     runtime = AgentRuntime(graph, bot, draft_graph)
     bot.runtime = runtime

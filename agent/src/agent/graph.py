@@ -57,6 +57,10 @@ class AgentState(TypedDict, total=False):
     proposals: list[dict[str, Any]]
     applied: list[dict[str, Any]]
     approved: bool
+    # --- orchestrator (#62 段階2) ---
+    plan: list[dict[str, Any]]        # マネージャが書き出したサブタスク列
+    scratchpad: list[dict[str, Any]]  # 各サブセッションの所見(タスク候補)
+    plan_failed: bool                 # plan のLLM出力が解釈不能だった(→一括reconcileにフォールバック)
 
 
 _SYSTEM_PROMPT = (
@@ -193,6 +197,51 @@ def _due_fallback(text: str, today: dt.date) -> Optional[str]:
     return d.isoformat()
 
 
+def finalize_proposals(generated: list["Proposal"], state: AgentState) -> list[dict[str, Any]]:
+    """生成された Proposal 群を最終化する (reconcile と orchestrator の integrate で共用)。
+
+    既存/記憶済み/同一バッチ内の重複除去 → 由来リンク・ラベル解決 →
+    締切の決定論的フォールバック(メール本文の「○月○日」/予定開始日) → 件数上限、を適用する。
+    seen.is_seen はファイル読み(同期)だが件数が少なく呼び出し側の挙動を維持するため同期のままにする。
+    """
+    today = dt.date.today()
+    # 締切の決定論的フォールバック用に、由来メール本文と予定開始日を引けるようにする
+    email_text = {
+        e.get("source", ""): f"{e.get('subject', '')} {e.get('snippet', '')}"
+        for e in state.get("emails", [])
+    }
+    event_due = {
+        e.get("source", ""): (e.get("start", "") or "")[:10]  # 予定開始日(YYYY-MM-DD)
+        for e in state.get("events", [])
+    }
+    # 既存タイトルとの重複をプログラム的にも除去 (LLMの取りこぼし対策)
+    existing_norm = {_norm(t["title"]) for t in state.get("existing_tasks", [])}
+    source_index = _build_source_index(state)
+    proposals: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
+    for p in generated:
+        key = _norm(p.title)
+        if not p.title or key in existing_norm or key in seen_titles:
+            continue
+        if seen.is_seen(p.source):  # 過去に反映/却下済みの由来は再提案しない
+            log.info("finalize: 記憶済みの由来をスキップ source=%s", p.source)
+            continue
+        seen_titles.add(key)
+        item = p.model_dump()
+        if not item.get("due"):  # LLMが取りこぼした締切を決定論的に補完
+            tokens = re.split(r"[,\s]+", item.get("source", "") or "")
+            text = " ".join(email_text.get(t, "") for t in tokens) + f" {p.reason} {p.title}"
+            due = _due_fallback(text, today)  # ① メール本文等の「○月○日」を解釈
+            if not due:  # ② カレンダー予定由来なら予定開始日を締切に流用
+                due = next((event_due[t] for t in tokens if event_due.get(t)), None)
+            item["due"] = due
+        item.update(_resolve_source(item.get("source"), source_index))  # 由来リンク/ラベルを解決
+        proposals.append(item)
+        if len(proposals) >= settings.max_proposals_per_run:
+            break
+    return proposals
+
+
 async def crawl_node(state: AgentState) -> dict[str, Any]:
     emails, events, existing = await asyncio.gather(
         asyncio.to_thread(gmail.fetch_recent),
@@ -214,44 +263,7 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
     # メモリ層の方針(task領域+global)を常時注入し、ゴミ提案を抑制する
     extra = await asyncio.to_thread(memory.directives_block, "task")
     generated = await _generate_proposals(payload, extra_system=extra)
-
-    # 締切の決定論的フォールバック用に、由来メール本文と予定開始日を引けるようにする
-    today = dt.date.today()
-    email_text = {
-        e.get("source", ""): f"{e.get('subject', '')} {e.get('snippet', '')}"
-        for e in state.get("emails", [])
-    }
-    event_due = {
-        e.get("source", ""): (e.get("start", "") or "")[:10]  # 予定開始日(YYYY-MM-DD)
-        for e in state.get("events", [])
-    }
-
-    # 既存タイトルとの重複をプログラム的にも除去 (LLMの取りこぼし対策)
-    existing_norm = {_norm(t["title"]) for t in state.get("existing_tasks", [])}
-    source_index = _build_source_index(state)
-    proposals: list[dict[str, Any]] = []
-    seen_titles: set[str] = set()
-    for p in generated:
-        key = _norm(p.title)
-        if not p.title or key in existing_norm or key in seen_titles:
-            continue
-        if seen.is_seen(p.source):  # 過去に反映/却下済みの由来は再提案しない
-            log.info("reconcile: 記憶済みの由来をスキップ source=%s", p.source)
-            continue
-        seen_titles.add(key)
-        item = p.model_dump()
-        if not item.get("due"):  # LLMが取りこぼした締切を決定論的に補完
-            tokens = re.split(r"[,\s]+", item.get("source", "") or "")
-            text = " ".join(email_text.get(t, "") for t in tokens) + f" {p.reason} {p.title}"
-            due = _due_fallback(text, today)  # ① メール本文等の「○月○日」を解釈
-            if not due:  # ② カレンダー予定由来なら予定開始日を締切に流用
-                due = next((event_due[t] for t in tokens if event_due.get(t)), None)
-            item["due"] = due
-        item.update(_resolve_source(item.get("source"), source_index))  # 由来リンク/ラベルを解決
-        proposals.append(item)
-        if len(proposals) >= settings.max_proposals_per_run:
-            break
-
+    proposals = finalize_proposals(generated, state)
     log.info("reconcile: 提案 %d件", len(proposals))
     return {"proposals": proposals}
 
