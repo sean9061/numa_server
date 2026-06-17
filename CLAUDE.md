@@ -51,7 +51,8 @@ numa_server/
 - **バックエンド:** Node.js (Express + WebSocket) — `dashboard/src/`
 - **フロントエンド:** Vite + React + TypeScript — `dashboard/frontend/src/`
   - Recharts (チャート)、Zustand (状態管理)、Tailwind CSS v4
-- `proxy_net` のみ接続、ホストポート非公開
+- `proxy_net` 接続。ホストは `127.0.0.1:8088` のみ公開
+- **アクセスは Tailscale 限定** (docker.sock を握る管理ツールのためインターネット非公開)。`tailscale serve --https=443 http://127.0.0.1:8088` で `https://<your-machine>.<your-tailnet>.ts.net/` に配信。NPM の公開ホスト (旧 `dash.s3an.dev`) は無効化済み
 - **2パネル構成:**
   - **SERVER:** CPU / GPU / RAM / Network / Disk（ドーナツ内訳 + I/Oラインチャート）/ Load / Power（CPU+GPU+DRAM合計・内訳）
   - **SERVICES:** カードグリッド表示（CPU/MEM/Disk棒グラフ）・start/stop/restart操作・ログドロワー・ポートフォリオのみWebアクセス数(req/min・1hr合計)表示

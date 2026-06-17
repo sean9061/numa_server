@@ -13,17 +13,22 @@ Internet
 ┌──────────────────────────────────────────────────────┐
 │   Nginx Proxy Manager                                │  ← リバースプロキシ・SSL終端
 │   Admin UI: Port 81 (LAN内のみ)                     │
-└──┬──────────────┬──────────────┬──────────┬──────────┘
-   │ proxy_net    │ proxy_net    │ proxy_net│ ollama_net
-   ▼              ▼              ▼          ▼
-┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────────────────┐
-│Portfolio │ │Open WebUI│ │Dashboard │ │ Ollama (API only)  │
-│s3an.dev  │ │chat.s3an │ │dash.s3an │ │ ollama.s3an.dev    │
-│:3000     │ │:8080     │ │:3000     │ │ :11434             │
-└──────────┘ └────┬─────┘ └──────────┘ └────────────────────┘
+└──┬──────────────┬────────────────────────┬──────────┘
+   │ proxy_net    │ proxy_net               │ ollama_net
+   ▼              ▼                          ▼
+┌──────────┐ ┌──────────┐              ┌────────────────────┐
+│Portfolio │ │Open WebUI│              │ Ollama (API only)  │
+│s3an.dev  │ │chat.s3an │              │ ollama.s3an.dev    │
+│:3000     │ │:8080     │              │ :11434             │
+└──────────┘ └────┬─────┘              └────────────────────┘
                   │ ollama_net (内部)              ↑
                   └────────────────────────────────┘
-  ※ Portfolio・Dashboard は Ollama に到達不可 (ネットワーク分離)
+
+  Dashboard (監視) は公開せず Tailscale 限定:
+    Tailnet ──▶ tailscale serve(:443) ──▶ 127.0.0.1:8088 ──▶ dashboard:3000
+    URL: https://<your-machine>.<your-tailnet>.ts.net/   (インターネット非公開)
+
+  ※ Portfolio は Ollama に到達不可 (ネットワーク分離)
 ```
 
 ---
@@ -127,12 +132,12 @@ Internet
 |------|------|
 | イメージ | `numa-dashboard` (Node.js 20 Alpine, ローカルビルド) |
 | 役割 | サーバーリアルタイム監視ダッシュボード |
-| エンドポイント | `https://dash.s3an.dev` |
-| 認証 | JWT + bcrypt パスワード認証 (httpOnly Cookie) |
+| エンドポイント | `https://<your-machine>.<your-tailnet>.ts.net/` (**Tailscale 限定・インターネット非公開**) |
+| 認証 | JWT + bcrypt パスワード認証 (httpOnly Cookie) + Tailscale (tailnet 参加端末のみ到達可) |
 | 監視項目 | CPU/GPU/RAM/VRAM・ネットワーク・ディスク(内訳+I/O)・温度・電力(CPU+GPU+DRAM) |
 | サービス管理 | コンテナ一覧カードグリッド・CPU/MEM/Disk使用率・start/stop/restart操作・ログ表示 |
 | アクセス解析 | Portfolioのreq/min・1時間合計（NPMアクセスログ集計） |
-| ネットワーク | `proxy_net` |
+| ネットワーク | `proxy_net` (内部用) ／ ホストは `127.0.0.1:8088` のみ公開 (`tailscale serve` 経由) |
 | 環境変数 | `dashboard/.env` (`DASHBOARD_PASSWORD`, `JWT_SECRET`, `PORTFOLIO_LOG`) |
 
 ---
@@ -156,7 +161,7 @@ Internet
 | Portfolio | 3000 | 非公開 (本番) | HTTP | Next.jsアプリ |
 | Open WebUI | 8080 | 非公開 | HTTP | Web UI (proxy_net経由) |
 | Ollama | 11434 | 非公開 | HTTP | LLM API (ollama_net経由) |
-| Dashboard | 3000 | 非公開 (本番) | HTTP | 監視ダッシュボード (proxy_net経由) |
+| Dashboard | 3000 | `127.0.0.1:8088` | HTTP | 監視ダッシュボード (Tailscale serve 経由・インターネット非公開) |
 
 ---
 
@@ -305,6 +310,12 @@ docker exec -it ollama ollama pull qwen2.5:7b
 | SSL | Let's Encrypt (Force SSL ON) |
 | Advanced | `nginx-custom.conf` の内容を貼り付け (`YOUR_OLLAMA_API_KEY_HERE` を置換) |
 
+> ⚠️ **Advanced タブの内容は NPM の DB (`proxy_host.advanced_config`) にのみ保存され、git 管理外**。プロキシホスト再作成・NPM アップグレード・証明書再生成で**無言で消えることがある**（消えると Bearer 認証が外れ Ollama が無認証公開になる）。設定後は必ず異常系で検証する:
+> ```bash
+> curl -o /dev/null -w '%{http_code}\n' https://ollama.s3an.dev/api/tags                       # 鍵なし → 401 が正
+> curl -o /dev/null -w '%{http_code}\n' -H 'Authorization: Bearer wrong' https://ollama.s3an.dev/api/tags  # 誤鍵 → 401 が正
+> ```
+
 **② chat.s3an.dev**
 
 | 設定 | 値 |
@@ -336,14 +347,22 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-### 3. Nginx Proxy Manager の設定
+### 3. アクセス設定 — Tailscale 限定 (NPM 公開なし)
 
-**dash.s3an.dev**
+ダッシュボードは docker.sock を握る管理ツールのため、**インターネット公開せず Tailscale (tailnet) 限定**で配信する。NPM の Proxy Host は使わない (旧 `dash.s3an.dev` は無効化済み)。
 
-| 設定 | 値 |
-|---|---|
-| Forward Hostname / Port | `dashboard` / `3000` |
-| SSL | Let's Encrypt (Force SSL ON) |
+```bash
+# compose.yaml で 127.0.0.1:8088 のみ公開 (LAN/外部には出さない)
+#   ports:
+#     - "127.0.0.1:8088:3000"
+
+# tailnet で Serve / HTTPS Certificates を有効化 (Tailscale 管理コンソール) のうえ:
+sudo tailscale set --operator=$USER          # 初回のみ (sudo なしで serve 操作するため)
+tailscale serve --bg --https=443 http://127.0.0.1:8088
+tailscale serve status                        # https://<host>.<tailnet>.ts.net/ を確認
+```
+
+アクセス URL: `https://<your-machine>.<your-tailnet>.ts.net/` (tailnet 参加端末のみ・自己ノードからの自己接続は不可。スマホ/別PC から確認)。
 
 ---
 
@@ -373,10 +392,11 @@ docker compose up -d --build
          │
          ├─── s3an.dev ──────────▶ proxy_net ──▶ portfolio:3000
          │
-         ├─── dash.s3an.dev ─────▶ proxy_net ──▶ dashboard:3000
-         │                                        (JWT認証)
          ├─── chat.s3an.dev ─────▶ proxy_net ──▶ open-webui:8080 ─▶ ollama:11434
          │                                        (WebUI認証)        (ollama_net内部)
          └─── ollama.s3an.dev ───▶ ollama_net ─▶ ollama:11434
                                    (Bearer認証)
+
+  ※ Dashboard は NPM を経由しない。Tailscale 限定:
+     Tailnet ─▶ tailscale serve(:443) ─▶ 127.0.0.1:8088 ─▶ dashboard:3000 (JWT認証)
 ```
