@@ -57,9 +57,10 @@ class AgentState(TypedDict, total=False):
     proposals: list[dict[str, Any]]
     applied: list[dict[str, Any]]
     approved: bool
-    # --- orchestrator (#62 段階2) ---
+    # --- orchestrator (#62 段階2/3) ---
     plan: list[dict[str, Any]]        # マネージャが書き出したサブタスク列
     scratchpad: list[dict[str, Any]]  # 各サブセッションの所見(タスク候補)
+    research: list[dict[str, Any]]    # web_research の調査メモ(integrate の参考情報・段階3)
     plan_failed: bool                 # plan のLLM出力が解釈不能だった(→一括reconcileにフォールバック)
 
 

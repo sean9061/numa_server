@@ -47,6 +47,7 @@ from .graph import (
     review_node,
 )
 from .llm import make_llm
+from .tools import web
 
 log = logging.getLogger("agent.orchestrator")
 
@@ -90,12 +91,42 @@ _CALENDAR_SYSTEM = (
 
 _INTEGRATE_SYSTEM = (
     "あなたはタスク管理アシスタントの『編集者』です。"
-    "各サブタスクが見つけたタスク候補の一覧が与えられます。"
+    "各サブタスクが見つけたタスク候補(candidates)と、調査メモ(research)が与えられます。"
     "実質的に重複する候補は1つに統合し、ユーザーが対応すべき最終タスク一覧に整えてください。"
-    "情報を新たに創作しないこと(与えられた候補の範囲で統合・整理するだけ)。"
+    "research は判断を補強する参考情報です。research を使って候補の根拠(reason)や締切(due)を"
+    "補ってよいですが、research だけを根拠にタスクを創作しないこと(候補に紐づく場合のみ)。"
+    "与えられた情報の範囲で統合・整理するだけで、新たな事実を創作しないこと。"
     "\n\n出力は説明を付けず、次の形式の JSON 配列のみ:\n"
     '[{"title": "...", "due": "YYYY-MM-DD または null", "reason": "根拠", "source": "由来ID"}]'
 )
+
+_RESEARCH_SYSTEM = (
+    "あなたは調査アシスタントです。ある目的(goal)と、Web検索の結果(タイトル・URL・抜粋・本文)が"
+    "与えられます。goal に答えるために、結果に書かれている範囲で簡潔に(日本語・数文)要約してください。"
+    "締切や日付があれば明記すること。結果に無いことは創作せず、不明なら『不明』と書くこと。"
+)
+
+
+async def _research(goal: str) -> dict[str, Any] | None:
+    """web_research サブタスク: SearXNG 検索 → (上位を取得) → LLM要約して調査メモを返す。"""
+    results = await asyncio.to_thread(web.search_web, goal)
+    if not results:
+        return None
+    # 上位1件は本文も取得して要約材料を厚くする(失敗しても抜粋だけで続行)
+    top = dict(results[0])
+    body = await asyncio.to_thread(web.fetch_url, top.get("url", ""))
+    if body:
+        top = {**top, "body": body}
+    payload = {"goal": goal, "results": [top, *results[1:]]}
+    llm = make_llm(reasoning=False)
+    resp = await llm.ainvoke(
+        [SystemMessage(content=_RESEARCH_SYSTEM), HumanMessage(content=json.dumps(payload, ensure_ascii=False))]
+    )
+    summary = resp.content if isinstance(getattr(resp, "content", None), str) else str(resp)
+    summary = summary.strip()
+    if not summary:
+        return None
+    return {"goal": goal, "summary": summary, "sources": [r.get("url", "") for r in results if r.get("url")]}
 
 
 async def _llm_to_proposals(system: str, payload: dict[str, Any], extra_system: str = "") -> list[Proposal] | None:
@@ -181,6 +212,7 @@ async def execute_node(state: AgentState) -> dict[str, Any]:
     emails_by_id = {e.get("source", ""): e for e in state.get("emails", [])}
     events_by_id = {ev.get("source", ""): ev for ev in state.get("events", [])}
     findings: list[dict[str, Any]] = []
+    research: list[dict[str, Any]] = []
 
     for st in state.get("plan", []):
         typ = st.get("type")
@@ -205,12 +237,17 @@ async def execute_node(state: AgentState) -> dict[str, Any]:
             if cands:
                 findings.extend(p.model_dump() for p in cands)
         elif typ == "web_research":
-            log.info("execute: web_research は段階3で実装予定。スキップ goal=%s", goal)
+            if not settings.web_research_enabled:
+                log.info("execute: web_research は無効(WEB_RESEARCH_ENABLED=false)。スキップ goal=%s", goal)
+                continue
+            note = await _research(goal)
+            if note:
+                research.append(note)
         else:
             log.warning("execute: 未知のサブタスク型をスキップ type=%s", typ)
 
-    log.info("execute: 所見(タスク候補) %d件", len(findings))
-    return {"scratchpad": findings}
+    log.info("execute: タスク候補 %d件 / 調査メモ %d件", len(findings), len(research))
+    return {"scratchpad": findings, "research": research}
 
 
 async def integrate_node(state: AgentState) -> dict[str, Any]:
@@ -220,7 +257,8 @@ async def integrate_node(state: AgentState) -> dict[str, Any]:
         log.info("integrate: 候補なし → 提案 0件")
         return {"proposals": []}
     extra = await asyncio.to_thread(memory.directives_block, "task")
-    generated = await _llm_to_proposals(_INTEGRATE_SYSTEM, {"candidates": findings}, extra_system=extra)
+    payload = {"candidates": findings, "research": state.get("research", [])}
+    generated = await _llm_to_proposals(_INTEGRATE_SYSTEM, payload, extra_system=extra)
     if generated is None:  # 統合LLMが故障 → 候補をそのまま採用(取りこぼし防止)
         log.warning("integrate: 統合に失敗 → 候補をそのまま finalize")
         generated = _to_proposals(findings)

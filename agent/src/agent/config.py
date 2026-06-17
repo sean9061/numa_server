@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     orchestrator_enabled: bool = False
     orchestrator_max_subtasks: int = 20   # マネージャが書き出すサブタスクの上限
     orchestrator_batch_size: int = 3      # inspect_email 1呼び出しで精査するメール件数(満溢回避)
+    # --- Web リサーチ (#62 段階3, SearXNG 自ホスト経由) ---
+    # true で web_research サブタスクが実検索(SearXNG)→要約を行う。false なら従来どおりスキップ。
+    web_research_enabled: bool = False
+    searxng_url: str = "http://searxng:8080"  # 内部専用 SearXNG (ollama_net)
+    web_search_max_results: int = 5           # 1検索で採用する結果数
+    web_fetch_max_chars: int = 3000           # ページ取得時に要約へ渡す本文の上限(満溢回避)
     run_on_start: bool = True
     # タスク追加は低リスクなので既定で承認不要(直接Notionへ挿入し結果のみ通知)。
     # true にすると従来通り Discord ボタンでの承認を挟む。
