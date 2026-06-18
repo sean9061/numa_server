@@ -1,0 +1,28 @@
+# SearXNG 設定 (#62 段階3)。エージェントの web_research 用・内部専用。
+# Google は自ホストSearXNGを能動ブロックするため無効化し、DuckDuckGo/Brave/Startpage 等を使う。
+use_default_settings: true
+
+general:
+  instance_name: "numa-search"
+
+server:
+  # 内部専用・単一クライアント(agent)のみのため limiter/bot検知は無効(Valkey不要)。
+  secret_key: "f7a7a0cba7dbc02cdb42db2eb640aa609d63cc9f986b19d3c9aff36d008e322b"
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  # JSON API を有効化(agent が format=json で叩く)。
+  formats:
+    - html
+    - json
+  default_lang: "ja"
+  autocomplete: ""
+
+engines:
+  # Google は自ホストインスタンスをブロックするため無効化。
+  - name: google
+    disabled: true
+  - name: google news
+    disabled: true

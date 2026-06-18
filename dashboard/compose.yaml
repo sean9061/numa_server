@@ -7,6 +7,8 @@ services:
     container_name: dashboard
     restart: always
     pid: "host"                  # Access host PID namespace for /proc metrics
+    ports:
+      - "127.0.0.1:8088:3000"    # localhost only — exposed to the tailnet via `tailscale serve` (not public)
     environment:
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
