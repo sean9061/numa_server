@@ -15,7 +15,9 @@ numa_server/
 ├── proxy/          — Nginx Proxy Manager + MariaDB (ports 80/443/81)
 ├── portfolio/      — Next.js 16 ポートフォリオ (see portfolio/CLAUDE.md)
 ├── ollama_server/  — Ollama (LLM) + Open WebUI
-└── dashboard/      — サーバー監視ダッシュボード (Node.js + WebSocket)
+├── dashboard/      — サーバー監視ダッシュボード (Node.js + WebSocket)
+├── agent/          — ローカルLLM自律エージェント (Python + LangGraph, see agent/ROADMAP.md)
+└── searxng/        — メタ検索 (agent の Web リサーチ用・内部専用)
 ```
 
 ## Docker Networks
@@ -25,7 +27,7 @@ numa_server/
 | ネットワーク | 接続サービス |
 |---|---|
 | `proxy_net` | Nginx Proxy Manager, Portfolio, Open WebUI, Dashboard |
-| `ollama_net` | Nginx Proxy Manager, Ollama, Open WebUI |
+| `ollama_net` | Nginx Proxy Manager, Ollama, Open WebUI, Agent, SearXNG |
 
 **ネットワーク名は変更禁止。** 全サービスの `compose.yaml` に影響する。
 
@@ -51,7 +53,8 @@ numa_server/
 - **バックエンド:** Node.js (Express + WebSocket) — `dashboard/src/`
 - **フロントエンド:** Vite + React + TypeScript — `dashboard/frontend/src/`
   - Recharts (チャート)、Zustand (状態管理)、Tailwind CSS v4
-- `proxy_net` のみ接続、ホストポート非公開
+- `proxy_net` 接続。ホストは `127.0.0.1:8088` のみ公開
+- **アクセスは Tailscale 限定** (docker.sock を握る管理ツールのためインターネット非公開)。`tailscale serve --https=443 http://127.0.0.1:8088` で `https://<your-machine>.<your-tailnet>.ts.net/` に配信。NPM の公開ホスト (旧 `dash.s3an.dev`) は無効化済み
 - **2パネル構成:**
   - **SERVER:** CPU / GPU / RAM / Network / Disk（ドーナツ内訳 + I/Oラインチャート）/ Load / Power（CPU+GPU+DRAM合計・内訳）
   - **SERVICES:** カードグリッド表示（CPU/MEM/Disk棒グラフ）・start/stop/restart操作・ログドロワー・ポートフォリオのみWebアクセス数(req/min・1hr合計)表示
@@ -71,6 +74,17 @@ numa_server/
   cd dashboard/frontend && npm run dev
   ```
 
+### `agent/` — ローカルLLM自律エージェント (Python + LangGraph)
+- Gmail(読取専用)+Calendar→LLM突合→Notion にタスク反映、メール返信案の提示(読取専用)を行う。**真実の源は `agent/ROADMAP.md`**、進捗は issue #59。
+- `ollama_net` のみ接続 (Ollama 到達 + 外部API egress)。ホストポート非公開。Docker socket/ホストFSは非マウント。
+- 通知・HITL承認は **Discord**。状態は `AsyncSqliteSaver`(`data/checkpoints.sqlite`)。
+- クロールは `CRAWL_HOURS` の時刻指定(cron, 既定 1日7回)。`ORCHESTRATOR_ENABLED` で「計画→逐次実行→統合」のマネージャ・オーケストレータ、`WEB_RESEARCH_ENABLED` で SearXNG 経由の Web リサーチを有効化 (#62)。
+- シークレットは `agent/.env`(chmod 600) と `data/` のトークンのみ。**コード変更後は要リビルド:** `docker compose build && docker compose up -d`
+
+### `searxng/` — メタ検索 (agent の Web リサーチ用)
+- agent の `web_research` が叩く JSON 検索API。`ollama_net` のみ接続、**ホストポート非公開・NPM非経由＝内部専用** (agent からのみ到達)。
+- `searxng/settings.yml` で JSON出力を有効化。**Google は自ホストインスタンスをブロックするため無効化**し DuckDuckGo/Brave/Startpage 等を使用。単一クライアントのため limiter/bot検知はoff (Valkey不要)。
+
 ## Infrastructure Commands
 
 **初回セットアップ:**
@@ -79,12 +93,14 @@ docker network create proxy_net
 docker network create ollama_net
 ```
 
-**起動順序 (初回): proxy → ollama_server → portfolio → dashboard**
+**起動順序 (初回): proxy → ollama_server → portfolio → dashboard → searxng → agent**
 ```bash
 cd proxy          && cp .env.example .env && docker compose up -d
 cd ollama_server  && cp .env.example .env && docker compose up -d
 cd portfolio      && docker compose up -d
 cd dashboard      && cp .env.example .env && docker compose up -d
+cd searxng        && docker compose up -d                          # agent の Web リサーチ用 (任意)
+cd agent          && cp .env.example .env && docker compose up -d   # ROADMAP.md 参照 (Google/Notion 認可が必要)
 ```
 
 **Portfolio 開発 (ローカル):**
