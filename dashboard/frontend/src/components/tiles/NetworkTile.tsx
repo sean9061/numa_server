@@ -1,16 +1,16 @@
 import { useStore } from '../../store/useStore';
-import { CHART_PTS, C } from '../../constants';
+import { C, HIST_DISPLAY } from '../../constants';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Card, Stat } from '../ui';
 import { MirrorNet } from '../charts';
-import { fmtBps } from '../../utils';
+import { fmtBps, downsample } from '../../utils';
 
 export function NetworkTile() {
   const m = useStore(s => s.metrics?.network);
-  const history = useStore(s => s.history);
-  const win = history.slice(-CHART_PTS);
+  const win = useViewHistory();
 
-  const rx = win.map(e => e.net_rx ?? null);
-  const tx = win.map(e => e.net_tx ?? null);
+  const rx = downsample(win.map(e => e.net_rx ?? null), HIST_DISPLAY);
+  const tx = downsample(win.map(e => e.net_tx ?? null), HIST_DISPLAY);
 
   return (
     <Card

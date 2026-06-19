@@ -1,17 +1,18 @@
 import { useStore } from '../../store/useStore';
-import { CHART_PTS, C } from '../../constants';
+import { C, HIST_DISPLAY } from '../../constants';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Card, HeadVal, Stat, Fan, Legend } from '../ui';
 import { LineSet } from '../charts';
-import { fmtTemp, fmtW, fmtVram, statusColor, clamp } from '../../utils';
+import { fmtTemp, fmtW, fmtVram, statusColor, clamp, downsample } from '../../utils';
 import type { HistoryEntry } from '../../types';
 
 function GpuBlock({ idx, win }: { idx: number; win: HistoryEntry[] }) {
   const g = useStore(s => s.metrics?.gpu?.[idx]);
   if (!g) return null;
 
-  const usage = win.map(e => e.gpu[idx]?.usage ?? null);
-  const vram = win.map(e => e.gpu[idx]?.vram_pct ?? null);
-  const temp = win.map(e => e.gpu[idx]?.temp ?? null);
+  const usage = downsample(win.map(e => e.gpu[idx]?.usage ?? null), HIST_DISPLAY);
+  const vram = downsample(win.map(e => e.gpu[idx]?.vram_pct ?? null), HIST_DISPLAY);
+  const temp = downsample(win.map(e => e.gpu[idx]?.temp ?? null), HIST_DISPLAY);
   const vramPct = g.vram_total ? clamp(Math.round((g.vram_used ?? 0) / g.vram_total * 100), 0, 100) : 0;
   const fanPct = g.fan_pct != null ? clamp(g.fan_pct / 100, 0, 1) : 0;
 
@@ -63,8 +64,7 @@ function GpuBlock({ idx, win }: { idx: number; win: HistoryEntry[] }) {
 
 export function GpuTile() {
   const count = useStore(s => s.metrics?.gpu?.length ?? 0);
-  const history = useStore(s => s.history);
-  const win = history.slice(-CHART_PTS);
+  const win = useViewHistory();
 
   return (
     <Card title="GPU" area="gpu" dot={C.accent2}>

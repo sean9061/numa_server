@@ -1,18 +1,18 @@
 import { useStore } from '../../store/useStore';
-import { CHART_PTS, C } from '../../constants';
+import { C, HIST_DISPLAY } from '../../constants';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Card, HeadVal, Stat, Legend } from '../ui';
 import { LineSet } from '../charts';
-import { fmtGB, statusColor, toGB } from '../../utils';
+import { fmtGB, statusColor, toGB, downsample } from '../../utils';
 
 export function RamTile() {
   const m = useStore(s => s.metrics?.ram);
-  const history = useStore(s => s.history);
-  const win = history.slice(-CHART_PTS);
+  const win = useViewHistory();
 
-  const used = win.map(e => toGB(e.ram_used));
-  const cached = win.map(e => toGB(e.ram_cached));
-  const buffers = win.map(e => toGB(e.ram_buffers));
-  const swap = win.map(e => toGB(e.swap_used));
+  const used = downsample(win.map(e => toGB(e.ram_used)), HIST_DISPLAY);
+  const cached = downsample(win.map(e => toGB(e.ram_cached)), HIST_DISPLAY);
+  const buffers = downsample(win.map(e => toGB(e.ram_buffers)), HIST_DISPLAY);
+  const swap = downsample(win.map(e => toGB(e.swap_used)), HIST_DISPLAY);
 
   const pct = m?.percent ?? 0;
 

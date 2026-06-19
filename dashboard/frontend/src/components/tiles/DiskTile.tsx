@@ -1,18 +1,18 @@
 import { useStore } from '../../store/useStore';
-import { CHART_PTS, C, PIE_COLORS } from '../../constants';
+import { C, HIST_DISPLAY, PIE_COLORS } from '../../constants';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Card, Stat } from '../ui';
 import { LineSet, Donut } from '../charts';
-import { fmtBps, fmtGB } from '../../utils';
+import { fmtBps, fmtGB, downsample } from '../../utils';
 
 export function DiskTile() {
   const disks = useStore(s => s.metrics?.disk);
   const breakdown = useStore(s => s.metrics?.disk_breakdown);
   const io = useStore(s => s.metrics?.disk_io);
-  const history = useStore(s => s.history);
-  const win = history.slice(-CHART_PTS);
+  const win = useViewHistory();
 
-  const rx = win.map(e => e.disk_rx ?? null);
-  const wx = win.map(e => e.disk_wx ?? null);
+  const rx = downsample(win.map(e => e.disk_rx ?? null), HIST_DISPLAY);
+  const wx = downsample(win.map(e => e.disk_wx ?? null), HIST_DISPLAY);
 
   // primary disk: root mount, else largest
   const list = disks ?? [];

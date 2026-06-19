@@ -1,16 +1,16 @@
 import { useStore } from '../../store/useStore';
-import { CHART_PTS, C } from '../../constants';
+import { C, HIST_DISPLAY } from '../../constants';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Card, HeadVal, Stat } from '../ui';
 import { LineSet } from '../charts';
-import { fmtTemp, fmtW, statusColor, meterColor } from '../../utils';
+import { fmtTemp, fmtW, statusColor, meterColor, downsample } from '../../utils';
 
 export function CpuTile() {
   const m = useStore(s => s.metrics?.cpu);
-  const history = useStore(s => s.history);
+  const win = useViewHistory();
 
-  const win = history.slice(-CHART_PTS);
-  const usage = win.map(e => e.cpu ?? null);
-  const temp = win.map(e => e.cpu_temp ?? null);
+  const usage = downsample(win.map(e => e.cpu ?? null), HIST_DISPLAY);
+  const temp = downsample(win.map(e => e.cpu_temp ?? null), HIST_DISPLAY);
 
   const cores = m?.cores ?? [];
   const u = m?.usage ?? 0;

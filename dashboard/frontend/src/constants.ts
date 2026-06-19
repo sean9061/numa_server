@@ -1,6 +1,5 @@
 export const HIST_DISPLAY = 60;    // chart render points (always fixed)
 export const MAX_HIST = 1800;      // frontend store limit (1h at 2s intervals)
-export const CHART_PTS = 60;       // recent points sliced from history for live charts
 export const LOG_MAX = 200;        // max log lines retained
 
 /** Chart colours (JS side — CSS mirrors these in :root) */

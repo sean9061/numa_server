@@ -1,17 +1,17 @@
 import { useStore } from '../../store/useStore';
-import { CHART_PTS, C } from '../../constants';
+import { C, HIST_DISPLAY } from '../../constants';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { Card, HeadVal, Legend } from '../ui';
 import { LineSet } from '../charts';
-import { fmtW } from '../../utils';
+import { fmtW, downsample } from '../../utils';
 
 export function PowerTile() {
   const m = useStore(s => s.metrics?.power);
-  const history = useStore(s => s.history);
-  const win = history.slice(-CHART_PTS);
+  const win = useViewHistory();
 
-  const total = win.map(e => e.pow_total ?? null);
-  const cpu = win.map(e => e.pow_cpu ?? null);
-  const gpu = win.map(e => e.pow_gpu ?? null);
+  const total = downsample(win.map(e => e.pow_total ?? null), HIST_DISPLAY);
+  const cpu = downsample(win.map(e => e.pow_cpu ?? null), HIST_DISPLAY);
+  const gpu = downsample(win.map(e => e.pow_gpu ?? null), HIST_DISPLAY);
 
   return (
     <Card
