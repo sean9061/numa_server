@@ -14,14 +14,20 @@ export function pushEntry(metrics, webRpm) {
   const entry = {
     ts:        Date.now(),
     cpu:       metrics.cpu?.usage      ?? null,
+    cpu_temp:  metrics.cpu?.temp       ?? null,
     cores:     metrics.cpu?.cores      ?? [],
     gpu:       (metrics.gpu ?? []).map(g => ({
       usage:      g.usage,
+      temp:       g.temp ?? null,
       vram_pct:   g.vram_total > 0 ? Math.round((g.vram_used / g.vram_total) * 100) : null,
       vram_used:  g.vram_used,
       vram_total: g.vram_total,
     })),
-    ram:       metrics.ram?.percent    ?? null,
+    ram:         metrics.ram?.percent   ?? null,
+    ram_used:    metrics.ram?.used      ?? null,
+    ram_cached:  metrics.ram?.cached    ?? null,
+    ram_buffers: metrics.ram?.buffers   ?? null,
+    swap_used:   metrics.ram?.swap_used ?? null,
     net_rx:    metrics.network?.rx_sec ?? null,
     net_tx:    metrics.network?.tx_sec ?? null,
     disk_rx:   metrics.disk_io?.rx_sec ?? null,
@@ -94,9 +100,10 @@ export async function queryHistory(fromTs, toTs, buckets) {
     const slice = entries.filter(e => e.ts >= bFrom && e.ts < bTo);
 
     if (slice.length === 0) {
-      return { ts: mid, cpu: null, ram: null, net_rx: null, net_tx: null,
-               disk_rx: null, disk_wx: null, pow_total: null, pow_cpu: null,
-               pow_gpu: null, gpu: [], cores: [] };
+      return { ts: mid, cpu: null, cpu_temp: null, ram: null, ram_used: null,
+               ram_cached: null, ram_buffers: null, swap_used: null,
+               net_rx: null, net_tx: null, disk_rx: null, disk_wx: null,
+               pow_total: null, pow_cpu: null, pow_gpu: null, gpu: [], cores: [] };
     }
 
     const avg = key => {
@@ -115,7 +122,12 @@ export async function queryHistory(fromTs, toTs, buckets) {
     return {
       ts:        mid,
       cpu:       avg('cpu'),
+      cpu_temp:  avg('cpu_temp'),
       ram:       avg('ram'),
+      ram_used:    avg('ram_used'),
+      ram_cached:  avg('ram_cached'),
+      ram_buffers: avg('ram_buffers'),
+      swap_used:   avg('swap_used'),
       net_rx:    avg('net_rx'),
       net_tx:    avg('net_tx'),
       disk_rx:   avg('disk_rx'),

@@ -1,24 +1,24 @@
-export const CANVAS_W = 1356;
-export const HIST_DISPLAY = 60;
-export const MAX_HIST = 1800;
-export const LOG_MAX = 200;
-export const STRIP_H = 44; // bottom chart strip height
+export const HIST_DISPLAY = 60;    // chart render points (always fixed)
+export const MAX_HIST = 1800;      // frontend store limit (1h at 2s intervals)
+export const CHART_PTS = 60;       // recent points sliced from history for live charts
+export const LOG_MAX = 200;        // max log lines retained
 
-// Tile layout — GPU spans full height; row 2 sits under cpu/ram/load columns
-// Col widths: 308 | 12gap | 408 | 12gap | 308 | 12gap | 296 = 1356
-// Row heights: 240 | 12gap | 296 = 548
-export const TILES = {
-  cpu:     { x: 0,    y: 0,   w: 308, h: 240 },
-  gpu:     { x: 320,  y: 0,   w: 408, h: 548 },
-  ram:     { x: 740,  y: 0,   w: 308, h: 240 },
-  load:    { x: 1060, y: 0,   w: 296, h: 240 },
-  network: { x: 0,    y: 252, w: 308, h: 296 },
-  disk:    { x: 740,  y: 252, w: 308, h: 296 },
-  power:   { x: 1060, y: 252, w: 296, h: 296 },
+/** Chart colours (JS side — CSS mirrors these in :root) */
+export const C = {
+  accent:  '#81a6c6',
+  accent2: '#6A8AAF',
+  accent3: '#b9d1e6',
+  cream:   '#f5ebd4',
+  gold:    '#ffe3a3',
+  warn:    '#ffe3a3',
+  crit:    '#d98a8e',
+  text:    '#ccd8e5',
+  dim:     '#8497ab',
+  track:   '#2d3947',
 } as const;
 
-export const SERVER_H = 252 + 296; // 548
-export const FLOW_H   = 740;       // services flow diagram total height
+/** Donut palette — cycled for disk mounts / breakdown slices */
+export const PIE_COLORS = ['#6A8AAF', '#81a6c6', '#b9d1e6', '#ffe3a3', '#f5ebd4'];
 
 export const SERVICE_LINKS: Record<string, string> = {
   'portfolio-container': 'https://s3an.dev',
@@ -26,12 +26,3 @@ export const SERVICE_LINKS: Record<string, string> = {
   'ollama':              'https://ollama.s3an.dev',
   'audio-log-distiller': 'https://distiller.s3an.dev',
 };
-
-export const DISK_COLORS     = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];
-export const DISK_COLORS_DIM = [
-  'rgba(59,130,246,0.15)', 'rgba(129,140,248,0.15)',
-  'rgba(34,197,94,0.15)',  'rgba(245,158,11,0.15)',
-  'rgba(239,68,68,0.15)',
-];
-
-export const GPU_COLORS = ['#818cf8', '#a78bfa'];

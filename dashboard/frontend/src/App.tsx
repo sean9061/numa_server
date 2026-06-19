@@ -1,13 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { useStore, wsConnect } from './store/useStore';
-import { Header }        from './components/Header';
-import { ServerPanel }   from './components/panels/ServerPanel';
-import { ServicesPanel } from './components/panels/ServicesPanel';
+import { useEffect } from 'react';
+import { wsConnect } from './store/useStore';
+import { Dashboard } from './components/Dashboard';
 
 export default function App() {
-  const activePanel    = useStore(s => s.activePanel);
-  const fitServerRef   = useRef<(() => void) | null>(null);
-
   // Auth guard
   useEffect(() => {
     fetch('/auth/check')
@@ -17,22 +12,7 @@ export default function App() {
   }, []);
 
   // WebSocket
-  useEffect(() => {
-    wsConnect();
-  }, []);
+  useEffect(() => { wsConnect(); }, []);
 
-  return (
-    <>
-      <Header onFitServer={() => fitServerRef.current?.()} />
-      <div style={{ position: 'fixed', top: 60, left: 0, right: 0, bottom: 0 }}>
-        <ServerPanel
-          visible={activePanel === 'server'}
-          fitRef={fitServerRef}
-        />
-        <ServicesPanel
-          visible={activePanel === 'services'}
-        />
-      </div>
-    </>
-  );
+  return <Dashboard />;
 }

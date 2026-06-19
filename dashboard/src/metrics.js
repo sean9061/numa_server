@@ -121,19 +121,6 @@ async function getNetworkRate() {
   }
 }
 
-// CPU fan speed from hwmon
-async function getCpuFan() {
-  for (let h = 0; h < 10; h++) {
-    for (let f = 1; f <= 6; f++) {
-      try {
-        const rpm = parseInt((await readFile(`/sys/class/hwmon/hwmon${h}/fan${f}_input`, 'utf-8')).trim());
-        if (!isNaN(rpm) && rpm >= 0) return rpm;
-      } catch { /* try next */ }
-    }
-  }
-  return null;
-}
-
 // GPU via nvidia-smi (複数パスを試行)
 const NVIDIA_SMI_PATHS = [
   'nvidia-smi',
@@ -328,7 +315,6 @@ export async function collectMetrics() {
     getLoadAvg(),    // 7
     getUptime(),     // 8
     getDiskIO(),     // 9
-    getCpuFan(),     // 10
   ]);
 
   const v = (i) => results[i].status === 'fulfilled' ? results[i].value : null;
@@ -340,7 +326,7 @@ export async function collectMetrics() {
   const totalPower = (cpuW ?? 0) + gpuPower;
 
   return {
-    cpu:      { usage: cpuResult?.usage ?? null, cores: cpuResult?.cores ?? [], temp: v(4), power: cpuW, fan_rpm: v(10) },
+    cpu:      { usage: cpuResult?.usage ?? null, cores: cpuResult?.cores ?? [], temp: v(4), power: cpuW },
     gpu:      gpus,
     ram:      v(1),
     network:  v(2) ?? { rx_sec: 0, tx_sec: 0, iface: 'unknown' },

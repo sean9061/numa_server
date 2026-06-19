@@ -18,6 +18,36 @@ export function fmtBps(bps?: number | null): string {
   return `${(bps / 1024 ** 2).toFixed(1)} MB/s`;
 }
 
+/** Watts — one decimal under 100W, integer above */
+export function fmtW(w?: number | null): string {
+  if (w == null) return '—';
+  return w < 100 ? `${w.toFixed(1)} W` : `${Math.round(w)} W`;
+}
+
+/** Celsius, rounded */
+export function fmtTemp(c?: number | null): string {
+  if (c == null) return '—';
+  return `${Math.round(c)}°C`;
+}
+
+/** Bytes → GB (fixed unit, for memory) */
+export function fmtGB(bytes?: number | null): string {
+  if (bytes == null) return '—';
+  return `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+}
+
+/** nvidia-smi VRAM is MiB → GB */
+export function fmtVram(mib?: number | null): string {
+  if (mib == null) return '—';
+  return `${(mib / 1024).toFixed(1)} GB`;
+}
+
+export const toGB = (bytes?: number | null): number | null =>
+  bytes == null ? null : bytes / 1024 ** 3;
+
+export const clamp = (v: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, v));
+
 export function fmtUptime(s?: number | null): string {
   if (!s) return '—';
   const d = Math.floor(s / 86400);
@@ -28,16 +58,23 @@ export function fmtUptime(s?: number | null): string {
   return `${m}m`;
 }
 
-/** CSS variable for status color — only colors when notable */
+/** Numeral color — stays neutral until the reading is notable. */
 export function statusColor(pct: number): string {
-  if (pct >= 85) return 'var(--red)';
-  if (pct >= 65) return 'var(--amber)';
+  if (pct >= 85) return 'var(--crit)';
+  if (pct >= 65) return 'var(--warn)';
   return 'var(--text)';
 }
 
-export function barColor(pct: number, okColor = 'var(--blue)'): string {
-  if (pct >= 85) return 'var(--red)';
-  if (pct >= 65) return 'var(--amber)';
+/** Tick-meter fill — resting cyan signal, escalating to warn/crit. */
+export function meterColor(pct: number, resting = 'var(--accent)'): string {
+  if (pct >= 85) return 'var(--crit)';
+  if (pct >= 65) return 'var(--warn)';
+  return resting;
+}
+
+export function barColor(pct: number, okColor = 'var(--accent)'): string {
+  if (pct >= 85) return 'var(--crit)';
+  if (pct >= 65) return 'var(--warn)';
   return okColor;
 }
 

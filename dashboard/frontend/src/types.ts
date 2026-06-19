@@ -18,7 +18,6 @@ export interface Metrics {
     temp?: number;
     power?: number;
     cores?: number[];
-    fan_rpm?: number | null;
   };
   gpu?: GpuData[];
   ram?: {
@@ -66,14 +65,20 @@ export interface Metrics {
 export interface HistoryEntry {
   ts: number;
   cpu: number | null;
+  cpu_temp?: number | null;
   cores: number[];
   gpu: Array<{
     usage: number;
+    temp?: number | null;
     vram_pct: number | null;
     vram_used?: number;
     vram_total?: number;
   }>;
   ram: number | null;
+  ram_used?:    number | null;
+  ram_cached?:  number | null;
+  ram_buffers?: number | null;
+  swap_used?:   number | null;
   net_rx: number | null;
   net_tx: number | null;
   disk_rx: number | null;
