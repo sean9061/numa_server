@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     # --- Google (Phase 1) ---
     google_oauth_client_json: str = "/app/data/google_client.json"
     google_token_json: str = "/app/data/google_token.json"
+    # 追加でクロールするメールボックスのトークン(カンマ区切り・任意)。Gmail のみ合算する
+    # (Calendar は主アカウントのみ)。各アカウントは scripts/google_auth_manual.py で個別に
+    # 認可し別ファイルへ保存する。例: /app/data/google_token_2.json,/app/data/google_token_3.json
+    gmail_extra_tokens: str = ""
     gmail_query: str = "is:unread (is:important OR is:starred)"
     gmail_max_results: int = 15
     gmail_body_max_chars: int = 4000   # 返信生成に渡すメール本文の上限
