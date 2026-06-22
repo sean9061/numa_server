@@ -1,6 +1,9 @@
 """アプリ設定。環境変数(.env / compose env_file)から読み込み、起動時に必須項目を検証する。"""
 from __future__ import annotations
 
+from typing import Any
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,11 +14,17 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11434"
     agent_model: str = "qwen3.6:35b-a3b-q4_K_M"
     llm_num_ctx: int = 16384   # context長。小さいとクロール時にプロンプトが溢れ出力が壊れる
-    # 各リクエストごとにモデルを再ロードさせる("0")。qwen3.6(ハイブリッドSSM+MoE)は
-    # Ollama 0.30.7 で warm slot の2回目推論時に recurrent状態を partial seq removal できず
-    # llama-serverがクラッシュする(実機で確認)。keep_alive=0 で毎回まっさらなslotにして回避。
-    # ※ Ollama更新でSSM対応が改善したら "5m" 等に戻すとwarmで高速化できる。
-    ollama_keep_alive: str = "0"
+    # keep_alive: モデルをVRAMに保持する時間。warm slot 再利用で高速化できるが、一部の
+    # ハイブリッドSSMモデル(qwen3.6 等)は Ollama 0.30.7 で warm slot の2回目推論時に
+    # recurrent状態を partial seq removal できず llama-server がクラッシュする(実機で確認)。
+    # → どのモデルでも動く汎用設計のため、keep_alive は llm.resolve_keep_alive() が
+    #   モデル名から自動判定する: ollama_no_warm_models に一致するモデルは "0"(毎回再ロード)、
+    #   それ以外はこの warm 既定値を使う。OLLAMA_KEEP_ALIVE を .env で明示すると自動判定より優先。
+    ollama_keep_alive: str = "5m"
+    # warm slot 再利用でクラッシュする既知モデル名のパターン(部分一致・小文字・カンマ区切り)。
+    # 該当モデルは自動で keep_alive="0" に落とす。新しい問題モデルが出たらここに追記するだけ。
+    # Ollama 側で SSM warm 対応が改善したら空("")にすれば全モデル warm 化できる。
+    ollama_no_warm_models: str = "qwen3.6"
 
     # --- Discord (Phase 0 で必須) ---
     discord_bot_token: str
@@ -52,9 +61,29 @@ class Settings(BaseSettings):
     # true にすると従来通り Discord ボタンでの承認を挟む。
     require_approval: bool = False
 
+    # --- 実行履歴 (#64: いつ何を見て何をしたかの記録) ---
+    # 各クロール/返信案サイクルの後に Discord へ簡潔なサマリを出す(提案なし/エラーも含め毎回)。
+    # 自動起動が「何を見て何をしたか」を可視化する。記録(runs.jsonl)は本設定に関わらず常に残す。
+    run_summary_enabled: bool = True
+    # サマリの送信先チャンネルID。0(未設定)なら通常の通知チャンネル(discord_channel_id)に送る。
+    # 承認ボタン付きの提案/追加通知は従来チャンネルのまま、サマリだけ別チャンネルに分けられる。
+    run_summary_channel_id: int = 0
+    # 『最近何やった?』(司書 action=runs)で表示する直近の実行数。
+    runs_history_limit: int = 15
+
+    @field_validator("run_summary_channel_id", mode="before")
+    @classmethod
+    def _blank_channel_to_zero(cls, v: Any) -> Any:
+        # .env で RUN_SUMMARY_CHANNEL_ID= と空指定された場合に int 解析で落ちないよう 0 扱いにする
+        return 0 if v in ("", None) else v
+
     # --- Google (Phase 1) ---
     google_oauth_client_json: str = "/app/data/google_client.json"
     google_token_json: str = "/app/data/google_token.json"
+    # 追加でクロールするメールボックスのトークン(カンマ区切り・任意)。Gmail のみ合算する
+    # (Calendar は主アカウントのみ)。各アカウントは scripts/google_auth_manual.py で個別に
+    # 認可し別ファイルへ保存する。例: /app/data/google_token_2.json,/app/data/google_token_3.json
+    gmail_extra_tokens: str = ""
     gmail_query: str = "is:unread (is:important OR is:starred)"
     gmail_max_results: int = 15
     gmail_body_max_chars: int = 4000   # 返信生成に渡すメール本文の上限
