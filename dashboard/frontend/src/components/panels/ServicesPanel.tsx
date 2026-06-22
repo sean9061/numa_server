@@ -39,6 +39,7 @@ export function ServicesPanel({ visible }: Props) {
           <div className="canvas-bg" />
           <FlowDiagram />
         </div>
+
       </div>
       <LogDrawer />
     </div>

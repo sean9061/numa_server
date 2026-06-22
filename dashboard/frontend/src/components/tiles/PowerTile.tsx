@@ -1,18 +1,16 @@
 import { useStore } from '../../store/useStore';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { PowerChart } from '../charts/PowerChart';
 import { CardLabel } from './TileCard';
 import { downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function PowerTile() {
-  const metrics    = useStore(s => s.metrics);
-  const history    = useStore(s => s.history);
-  const timeWindow = useStore(s => s.timeWindow);
+  const metrics = useStore(s => s.metrics);
+  const slice   = useViewHistory();
 
   const power = metrics?.power;
   const fmt   = (w?: number | null) => w != null ? `${w}W` : '—';
-
-  const slice = history.slice(-timeWindow);
   const total = downsample(slice.map(e => e.pow_total), HIST_DISPLAY);
   const cpu   = downsample(slice.map(e => e.pow_cpu),   HIST_DISPLAY);
   const gpu   = downsample(slice.map(e => e.pow_gpu),   HIST_DISPLAY);

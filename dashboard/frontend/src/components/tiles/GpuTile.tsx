@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
 import { FanIcon } from '../FanIcon';
@@ -7,12 +8,9 @@ import { GPU_COLORS, HIST_DISPLAY } from '../../constants';
 import type { GpuData } from '../../types';
 
 export function GpuTile() {
-  const metrics    = useStore(s => s.metrics);
-  const history    = useStore(s => s.history);
-  const timeWindow = useStore(s => s.timeWindow);
-  const gpus       = metrics?.gpu ?? [];
-
-  const slice = history.slice(-timeWindow);
+  const metrics = useStore(s => s.metrics);
+  const slice   = useViewHistory();
+  const gpus    = metrics?.gpu ?? [];
 
   if (!gpus.length) {
     return (

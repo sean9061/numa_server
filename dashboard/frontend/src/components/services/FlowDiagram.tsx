@@ -13,11 +13,12 @@ const X_NPM      = 100;
 const X_SERVICES = 430;
 const X_OLLAMA   = 770;
 
-// Row Y positions — 3 service nodes evenly spaced within FLOW_H
-const GAP         = Math.round((FLOW_H - 3 * NODE_H) / 4);
+// Row Y positions — 4 service nodes evenly spaced within FLOW_H
+const GAP         = Math.round((FLOW_H - 4 * NODE_H) / 5);
 const Y_PORTFOLIO = GAP;
 const Y_WEBUI     = GAP + NODE_H + GAP;
-const Y_DASHBOARD = GAP + NODE_H + GAP + NODE_H + GAP;
+const Y_AUDIO     = GAP + NODE_H + GAP + NODE_H + GAP;
+const Y_DASHBOARD = GAP + NODE_H + GAP + NODE_H + GAP + NODE_H + GAP;
 
 // NPM vertically centered between portfolio and dashboard
 const CY_MID = (Y_PORTFOLIO + NODE_H / 2 + Y_DASHBOARD + NODE_H / 2) / 2;
@@ -30,6 +31,7 @@ const anchors = {
   portfolio:{ lx: X_SERVICES,             ly: Y_PORTFOLIO + NODE_H / 2 },
   webui:    { lx: X_SERVICES,             ly: Y_WEBUI    + NODE_H / 2,
               rx: X_SERVICES + NODE_W,     ry: Y_WEBUI    + NODE_H / 2 },
+  audio:    { lx: X_SERVICES,             ly: Y_AUDIO     + NODE_H / 2 },
   dashboard:{ lx: X_SERVICES,             ly: Y_DASHBOARD + NODE_H / 2 },
   ollama:   { lx: X_OLLAMA,               ly: Y_WEBUI    + NODE_H / 2 },
 };
@@ -61,6 +63,11 @@ const TOPO_NODES: TopoNode[] = [
     containerName: 'open-webui',
   },
   {
+    id: 'audio', label: 'audio-log-distiller',
+    x: X_SERVICES, y: Y_AUDIO,
+    containerName: 'audio-log-distiller',
+  },
+  {
     id: 'dashboard', label: 'dashboard',
     x: X_SERVICES, y: Y_DASHBOARD,
     containerName: 'dashboard',
@@ -83,6 +90,7 @@ interface Edge {
 const EDGES: Edge[] = [
   { from: 'npm', to: 'portfolio',  network: 'proxy_net' },
   { from: 'npm', to: 'webui',      network: 'proxy_net' },
+  { from: 'npm', to: 'audio',      network: 'proxy_net' },
   { from: 'npm', to: 'dashboard',  network: 'proxy_net' },
   { from: 'webui', to: 'ollama',   network: 'ollama_net' },
 ];
@@ -136,6 +144,9 @@ export function FlowDiagram() {
     }
     if (from === 'npm' && to === 'webui') {
       return (containerStats['open-webui']?.cpu ?? 0) > 1;
+    }
+    if (from === 'npm' && to === 'audio') {
+      return (containerStats['audio-log-distiller']?.cpu ?? 0) > 0.5;
     }
     if (from === 'npm' && to === 'dashboard') {
       return (containerStats['dashboard']?.cpu ?? 0) > 0.5;

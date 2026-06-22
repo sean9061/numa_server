@@ -18,13 +18,13 @@ export const TILES = {
 } as const;
 
 export const SERVER_H = 252 + 296; // 548
-export const FLOW_H   = 660;       // services flow diagram total height
+export const FLOW_H   = 740;       // services flow diagram total height
 
 export const SERVICE_LINKS: Record<string, string> = {
-  'portfolio-container':  'https://s3an.dev',
-  'open-webui':           'https://chat.s3an.dev',
-  'ollama':               'https://ollama.s3an.dev',
-  'audio-log-distiller':  'https://distiller.s3an.dev',
+  'portfolio-container': 'https://s3an.dev',
+  'open-webui':          'https://chat.s3an.dev',
+  'ollama':              'https://ollama.s3an.dev',
+  'audio-log-distiller': 'https://distiller.s3an.dev',
 };
 
 export const DISK_COLORS     = ['#3b82f6', '#818cf8', '#22c55e', '#f59e0b', '#ef4444'];

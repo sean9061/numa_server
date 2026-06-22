@@ -1,16 +1,15 @@
 import { useStore } from '../../store/useStore';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
 import { fmtBps, downsample } from '../../utils';
 import { HIST_DISPLAY } from '../../constants';
 
 export function NetworkTile() {
-  const metrics    = useStore(s => s.metrics);
-  const history    = useStore(s => s.history);
-  const timeWindow = useStore(s => s.timeWindow);
+  const metrics = useStore(s => s.metrics);
+  const slice   = useViewHistory();
 
   const net  = metrics?.network;
-  const slice  = history.slice(-timeWindow);
   const rxData = downsample(slice.map(e => e.net_rx ?? 0), HIST_DISPLAY);
   const txData = downsample(slice.map(e => e.net_tx ?? 0), HIST_DISPLAY);
 

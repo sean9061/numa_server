@@ -1,4 +1,5 @@
 import { useStore } from '../../store/useStore';
+import { useViewHistory } from '../../hooks/useViewHistory';
 import { DiskDonut } from '../charts/DiskDonut';
 import { DualLineChart } from '../charts/DualLineChart';
 import { CardLabel } from './TileCard';
@@ -15,15 +16,12 @@ function fmtGB(bytes: number): string {
 }
 
 export function DiskTile() {
-  const metrics    = useStore(s => s.metrics);
-  const history    = useStore(s => s.history);
-  const timeWindow = useStore(s => s.timeWindow);
+  const metrics = useStore(s => s.metrics);
+  const slice   = useViewHistory();
 
   const disks     = metrics?.disk     ?? [];
   const diskIO    = metrics?.disk_io;
   const breakdown = metrics?.disk_breakdown ?? null;
-
-  const slice  = history.slice(-timeWindow);
   const rxData = downsample(slice.map(e => e.disk_rx ?? 0), HIST_DISPLAY);
   const wxData = downsample(slice.map(e => e.disk_wx ?? 0), HIST_DISPLAY);
 

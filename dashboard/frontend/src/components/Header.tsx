@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store/useStore';
+import { SettingsPanel } from './SettingsPanel';
 import { fmtUptime } from '../utils';
 
 async function logout() {
@@ -12,12 +13,16 @@ interface Props {
 }
 
 export function Header({ onFitServer }: Props) {
-  const [clock, setClock]   = useState('');
-  const wsStatus            = useStore(s => s.wsStatus);
+  const [clock, setClock]         = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const wsStatus                  = useStore(s => s.wsStatus);
   const metrics             = useStore(s => s.metrics);
   const timeWindow          = useStore(s => s.timeWindow);
+  const extRangeMs          = useStore(s => s.extRangeMs);
+  const extLoading          = useStore(s => s.extLoading);
   const activePanel         = useStore(s => s.activePanel);
   const setTimeWindow       = useStore(s => s.setTimeWindow);
+  const setExtRange         = useStore(s => s.setExtRange);
   const setActivePanel      = useStore(s => s.setActivePanel);
 
   useEffect(() => {
@@ -49,11 +54,18 @@ export function Header({ onFitServer }: Props) {
     },
   ] as const;
 
-  const timeRanges = [
+  const shortRanges = [
     { pts: 60,   label: '2m'  },
     { pts: 300,  label: '10m' },
     { pts: 900,  label: '30m' },
     { pts: 1800, label: '1h'  },
+  ];
+  const longRanges = [
+    { ms: 6  * 3600 * 1000, label: '6h'  },
+    { ms: 24 * 3600 * 1000, label: '24h' },
+    { ms: 7  * 86400 * 1000, label: '7d' },
+    { ms: 30 * 86400 * 1000, label: '30d' },
+    { ms: -1,               label: 'All' },
   ];
 
   const hdrStyle: React.CSSProperties = {
@@ -82,6 +94,7 @@ export function Header({ onFitServer }: Props) {
   });
 
   return (
+  <>
     <div style={hdrStyle}>
       {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', color: 'var(--blue)', flexShrink: 0 }}>
@@ -127,9 +140,19 @@ export function Header({ onFitServer }: Props) {
       {activePanel === 'server' && (
         <div id="server-controls" style={{ display: 'contents' }}>
           <div style={{ display: 'flex', gap: 3 }}>
-            {timeRanges.map(({ pts, label }) => (
-              <button key={pts} style={trBtnStyle(timeWindow === pts)} onClick={() => setTimeWindow(pts)}>
+            {shortRanges.map(({ pts, label }) => (
+              <button key={pts} style={trBtnStyle(extRangeMs == null && timeWindow === pts)}
+                onClick={() => { setTimeWindow(pts); setExtRange(null); }}>
                 {label}
+              </button>
+            ))}
+          </div>
+          <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+          <div style={{ display: 'flex', gap: 3 }}>
+            {longRanges.map(({ ms, label }) => (
+              <button key={ms} style={trBtnStyle(extRangeMs === ms)}
+                onClick={() => setExtRange(ms)}>
+                {extLoading && extRangeMs === ms ? '…' : label}
               </button>
             ))}
           </div>
@@ -146,10 +169,22 @@ export function Header({ onFitServer }: Props) {
       <div id="clock" style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{clock}</div>
       <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
+      {/* Settings */}
+      <button onClick={() => setSettingsOpen(o => !o)} title="設定"
+        style={{ padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: settingsOpen ? 'var(--surface2)' : 'transparent', color: settingsOpen ? 'var(--blue)' : 'var(--dim)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+
       {/* Logout */}
       <button onClick={logout} style={{ padding: '5px 12px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', color: 'var(--dim)', fontSize: 12, cursor: 'pointer' }}>
         Logout
       </button>
     </div>
+    <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+  </>
   );
 }
