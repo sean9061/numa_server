@@ -88,6 +88,57 @@ export interface HistoryEntry {
   pow_gpu:   number | null;
 }
 
+export type HomeKind = 'climate' | 'plug' | 'light' | 'lock' | 'bot' | 'keypad' | 'generic';
+
+export interface HomeDevice {
+  deviceId: string;
+  name: string;
+  type: string;
+  kind: HomeKind;
+  online: boolean;
+  battery: number | null;
+  // climate
+  temperature?: number | null;
+  humidity?: number | null;
+  lightLevel?: number | null;
+  // plug
+  power?: number | null;
+  voltage?: number | null;
+  current?: number | null;
+  energyDay?: number | null;
+  // on/off devices
+  on?: boolean | null;
+  brightness?: number | null;
+  color?: string | null;
+  colorTemp?: number | null;
+  // lock
+  lockState?: string | null;
+  doorState?: string | null;
+  // bot
+  mode?: string | null;
+}
+
+export interface HomeState {
+  devices: HomeDevice[];
+  error: string | null;
+  enabled: boolean;
+}
+
+export interface HomeHistoryEntry {
+  ts: number;
+  devices: Array<{
+    deviceId: string;
+    temperature?: number;
+    humidity?: number;
+    lightLevel?: number;
+    power?: number;
+    voltage?: number;
+    current?: number;
+    battery?: number;
+    brightness?: number;
+  }>;
+}
+
 export interface ContainerInfo {
   name: string;
   image: string;

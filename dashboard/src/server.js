@@ -9,6 +9,8 @@ import { authRouter, verifyToken, COOKIE_NAME_EXPORT as COOKIE_NAME } from './au
 import { collectMetrics } from './metrics.js';
 import { listContainers, getContainerStats, containerAction, streamContainerLogs, startNpmTracking, getPortfolioWebStats } from './docker-monitor.js';
 import { pushEntry, getEntries, loadFromDisk, saveToDisk, queryHistory } from './history.js';
+import { startHomePolling, getHomeState } from './home.js';
+import { pushHomeEntry, getHomeEntries, loadHomeFromDisk, saveHomeToDisk, queryHomeHistory } from './home-history.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT ?? 3000;
@@ -58,6 +60,22 @@ app.get('/api/history', apiAuth, async (req, res) => {
     const from    = parseInt(req.query.from)    >= 0 ? parseInt(req.query.from) : now - 86_400_000;
     const buckets = Math.min(parseInt(req.query.buckets) || 300, 1000);
     res.json(await queryHistory(from, to, buckets));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/home', apiAuth, (_req, res) => {
+  res.json(getHomeState());
+});
+
+app.get('/api/home/history', apiAuth, async (req, res) => {
+  try {
+    const now     = Date.now();
+    const to      = parseInt(req.query.to)      || now;
+    const from    = parseInt(req.query.from)    >= 0 ? parseInt(req.query.from) : now - 86_400_000;
+    const buckets = Math.min(parseInt(req.query.buckets) || 300, 1000);
+    res.json(await queryHomeHistory(from, to, buckets));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -154,6 +172,11 @@ wss.on('connection', (ws, req) => {
   send(ws, { type: 'connected' });
   const hist = getEntries();
   if (hist.length > 0) send(ws, { type: 'history', data: hist });
+
+  const home = getHomeState();
+  if (home.devices.length > 0) send(ws, { type: 'home', data: home });
+  const homeHist = getHomeEntries();
+  if (homeHist.length > 0) send(ws, { type: 'home_history', data: homeHist });
 });
 
 function send(ws, data) {
@@ -172,12 +195,22 @@ startNpmTracking();
 
 // Load history from disk on startup
 await loadFromDisk();
+await loadHomeFromDisk();
 
 // Save history to disk every minute
 setInterval(saveToDisk, 60_000);
+setInterval(saveHomeToDisk, 60_000);
 
 // Save on graceful shutdown
-process.on('SIGTERM', async () => { await saveToDisk(); process.exit(0); });
+process.on('SIGTERM', async () => { await saveToDisk(); await saveHomeToDisk(); process.exit(0); });
+
+// Poll SwitchBot devices and broadcast/store each snapshot
+startHomePolling((devices) => {
+  pushHomeEntry(devices);
+  if (wss.clients.size > 0) {
+    broadcast({ type: 'home', data: getHomeState() });
+  }
+});
 
 // Metrics collection loop (every 2s) — always collect and store, broadcast only when clients connected
 setInterval(async () => {

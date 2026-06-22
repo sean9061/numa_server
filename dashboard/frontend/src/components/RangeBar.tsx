@@ -17,12 +17,13 @@ const LONG = [
   { ms: -1,        label: 'All' },
 ];
 
-export function RangeBar() {
-  const timeWindow    = useStore(s => s.timeWindow);
-  const extRangeMs    = useStore(s => s.extRangeMs);
-  const extLoading    = useStore(s => s.extLoading);
-  const setTimeWindow = useStore(s => s.setTimeWindow);
-  const setExtRange   = useStore(s => s.setExtRange);
+export function RangeBar({ scope = 'server' }: { scope?: 'server' | 'home' }) {
+  const isHome = scope === 'home';
+  const timeWindow    = useStore(s => isHome ? s.homeTimeWindow : s.timeWindow);
+  const extRangeMs    = useStore(s => isHome ? s.homeExtRangeMs : s.extRangeMs);
+  const extLoading    = useStore(s => isHome ? s.homeExtLoading : s.extLoading);
+  const setTimeWindow = useStore(s => isHome ? s.setHomeTimeWindow : s.setTimeWindow);
+  const setExtRange   = useStore(s => isHome ? s.setHomeExtRange : s.setExtRange);
 
   const selectLive = (pts: number) => { setExtRange(null); setTimeWindow(pts); };
   const selectLong = (ms: number)  => { setExtRange(ms); };
