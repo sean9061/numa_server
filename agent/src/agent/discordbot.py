@@ -13,7 +13,7 @@ from typing import Any
 
 import discord
 
-from . import availability, librarian, memory
+from . import availability, librarian, memory, runlog
 from .config import settings
 from .tools import gcal
 
@@ -212,6 +212,96 @@ def _build_suggestions_embed(suggestions: list[dict[str, Any]]) -> discord.Embed
     return embed
 
 
+# --- 実行サマリ / 実行履歴 (#64) ---
+_TRIGGER_LABEL = {"startup": "起動時", "schedule": "定期", "manual": "手動"}
+_KIND_LABEL = {"crawl": "クロール", "draft": "返信案", "apply": "反映"}
+_OUTCOME = {  # outcome -> (絵文字, 色, 文言)
+    "applied": ("✅", 0x57F287, "タスクを追加"),
+    "proposed": ("📋", 0x5865F2, "提案あり"),
+    "awaiting_approval": ("📋", 0x5865F2, "提案あり(承認待ち)"),
+    "suggested": ("✉️", 0xFEE75C, "返信案あり"),
+    "none": ("➖", 0x4F545C, "対応なし"),
+    "rejected": ("🚫", 0x4F545C, "却下"),
+    "error": ("⚠️", 0xED4245, "失敗"),
+}
+
+
+def _fmt_jst(iso: str | None) -> str:
+    if not iso:
+        return "?"
+    try:
+        return dt.datetime.fromisoformat(iso).astimezone(_JST).strftime("%m/%d %H:%M")
+    except ValueError:
+        return iso[:16]
+
+
+def _run_headline(run: dict[str, Any]) -> str:
+    """outcome から1行の結果文を作る。"""
+    emoji, _, word = _OUTCOME.get(run.get("outcome", ""), ("•", 0, run.get("outcome", "")))
+    return f"{emoji} {word}"
+
+
+def _crawl_saw_line(saw: dict[str, Any]) -> str:
+    parts = [f"メール{saw.get('emails', 0)}", f"予定{saw.get('events', 0)}",
+             f"既存タスク{saw.get('existing_tasks', 0)}"]
+    line = "確認: " + " ・ ".join(parts)
+    plan = saw.get("plan")
+    if plan:  # orchestrator の計画
+        line += f"\n計画: {len(plan)}サブタスク (" + ", ".join(s.get("type", "?") for s in plan) + ")"
+    return line
+
+
+def _build_run_summary_embed(run: dict[str, Any]) -> discord.Embed:
+    emoji, color, _ = _OUTCOME.get(run.get("outcome", ""), ("🔍", 0x5865F2, ""))
+    trig = _TRIGGER_LABEL.get(run.get("trigger", ""), run.get("trigger", ""))
+    kind = _KIND_LABEL.get(run.get("kind", ""), run.get("kind", ""))
+    embed = discord.Embed(
+        title=f"{emoji} {kind}完了（{trig}）",
+        color=color,
+        timestamp=dt.datetime.now(dt.timezone.utc),
+    )
+    saw, did = run.get("saw", {}), run.get("did", {})
+    if run.get("kind") == "draft":
+        embed.add_field(name="確認", value=f"返信候補メール{saw.get('candidates', 0)}件", inline=False)
+        embed.add_field(name="結果",
+                        value=f"返信案 {did.get('suggestions', 0)}件" if did.get("suggestions")
+                        else "返信案なし", inline=False)
+        subs = did.get("subjects") or []
+    else:  # crawl / apply
+        if saw:
+            embed.add_field(name="確認", value=_crawl_saw_line(saw), inline=False)
+        embed.add_field(name="結果",
+                        value=f"提案{did.get('proposals', 0)} / 追加{did.get('applied', 0)}", inline=False)
+        subs = did.get("applied_titles") or did.get("proposal_titles") or []
+    if subs:
+        embed.add_field(name="内容", value="\n".join(f"• {_clip(s, 80)}" for s in subs[:10]), inline=False)
+    if run.get("error"):
+        embed.add_field(name="エラー", value=_clip(run["error"], 500), inline=False)
+    if run.get("mode") == "orchestrator":
+        embed.set_footer(text="orchestrator")
+    return embed
+
+
+def _build_runs_embed(runs: list[dict[str, Any]]) -> discord.Embed:
+    embed = discord.Embed(
+        title="🗒️ 最近の実行履歴",
+        description=f"直近 {len(runs)} 件" if runs else "まだ実行記録がありません。",
+        color=0x5865F2,
+    )
+    for run in reversed(runs):  # 新しい順に表示
+        trig = _TRIGGER_LABEL.get(run.get("trigger", ""), run.get("trigger", ""))
+        kind = _KIND_LABEL.get(run.get("kind", ""), run.get("kind", ""))
+        saw, did = run.get("saw", {}), run.get("did", {})
+        if run.get("kind") == "draft":
+            detail = f"候補{saw.get('candidates', 0)} → 返信案{did.get('suggestions', 0)}"
+        else:
+            detail = (f"メール{saw.get('emails', 0)}・予定{saw.get('events', 0)} "
+                      f"→ 提案{did.get('proposals', 0)}/追加{did.get('applied', 0)}")
+        name = f"{_fmt_jst(run.get('ts'))}  {kind}（{trig}） {_run_headline(run)}"
+        embed.add_field(name=_clip(name, 250), value=_clip(detail, 200), inline=False)
+    return embed
+
+
 class _ConfirmView(discord.ui.View):
     """覚える/忘れるの確認(HITL)。即時の会話用なので非永続(timeout付き)でよい。"""
 
@@ -303,7 +393,7 @@ class AgentBot(discord.Client):
             self._ran_start = True
             what = "クロール＋返信案" if settings.draft_enabled else "クロール"
             log.info("RUN_ON_START=true: 起動時に%sを逐次実行", what)
-            asyncio.create_task(self.runtime.run_cycle())  # crawl→draft を逐次
+            asyncio.create_task(self.runtime.run_cycle("startup"))  # crawl→draft を逐次
 
     async def on_message(self, message: discord.Message):
         """設定チャンネルの人間の発話に応答する。基本は通常のチャット、
@@ -373,6 +463,11 @@ class AgentBot(discord.Client):
             if reply:
                 await channel.send(reply)
             await self._send_calendar(result, question)
+        elif action == "runs":  # エージェント自身の実行履歴の照会 (#64)
+            if reply:
+                await channel.send(reply)
+            runs = await asyncio.to_thread(runlog.recent, settings.runs_history_limit)
+            await channel.send(embed=_build_runs_embed(runs))
         else:  # none = 通常のチャット応答
             await channel.send(reply or "(応答を生成できませんでした)")
 
@@ -417,11 +512,19 @@ class AgentBot(discord.Client):
                 else _format_free_slots(slots, range_start, range_end)
         await ch.send(answer)
 
-    async def _channel(self) -> discord.abc.Messageable:
-        ch = self.get_channel(settings.discord_channel_id)
+    async def _get_channel(self, channel_id: int) -> discord.abc.Messageable:
+        ch = self.get_channel(channel_id)
         if ch is None:
-            ch = await self.fetch_channel(settings.discord_channel_id)
+            ch = await self.fetch_channel(channel_id)
         return ch  # type: ignore[return-value]
+
+    async def _channel(self) -> discord.abc.Messageable:
+        return await self._get_channel(settings.discord_channel_id)
+
+    async def _summary_channel(self) -> discord.abc.Messageable:
+        """実行サマリの送信先。RUN_SUMMARY_CHANNEL_ID 未設定(0)なら通常チャンネルに送る (#64)。"""
+        cid = settings.run_summary_channel_id or settings.discord_channel_id
+        return await self._get_channel(cid)
 
     async def send_proposal(self, thread_id: str, payload: dict[str, Any]) -> None:
         ch = await self._channel()
@@ -434,6 +537,10 @@ class AgentBot(discord.Client):
     async def send_suggestions(self, suggestions: list[dict[str, Any]]) -> None:
         ch = await self._channel()
         await ch.send(embed=_build_suggestions_embed(suggestions))
+
+    async def send_run_summary(self, run: dict[str, Any]) -> None:
+        ch = await self._summary_channel()
+        await ch.send(embed=_build_run_summary_embed(run))
 
     async def send_text(self, text: str) -> None:
         ch = await self._channel()

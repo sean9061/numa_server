@@ -21,8 +21,24 @@ GOOGLE_SCOPES = [
 ]
 
 
-def get_credentials() -> Credentials:
-    path = settings.google_token_json
+def token_paths() -> list[str]:
+    """クロール対象アカウントのトークンファイル一覧(主アカウント＋追加メールボックス)。
+
+    先頭が主アカウント(google_token_json)。GMAIL_EXTRA_TOKENS(カンマ区切り)で
+    追加メールボックスのトークンを足せる。重複・空は除く。Gmail のみ複数対応で、
+    Calendar は常に主アカウント1つだけを使う(get_credentials() 既定)。
+    """
+    paths = [settings.google_token_json]
+    for p in (settings.gmail_extra_tokens or "").split(","):
+        p = p.strip()
+        if p and p not in paths:
+            paths.append(p)
+    return paths
+
+
+def get_credentials(path: str | None = None) -> Credentials:
+    """指定トークン(未指定なら主アカウント)の認証情報を返す。期限切れは自動更新する。"""
+    path = path or settings.google_token_json
     if not os.path.exists(path):
         raise RuntimeError(
             f"Google トークンが見つかりません: {path}. "
@@ -39,5 +55,5 @@ def get_credentials() -> Credentials:
             with open(path, "w") as f:
                 f.write(creds.to_json())
         else:
-            raise RuntimeError("Google トークンが無効です。再認可してください。")
+            raise RuntimeError(f"Google トークンが無効です。再認可してください: {path}")
     return creds

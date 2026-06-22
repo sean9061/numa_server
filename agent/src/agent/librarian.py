@@ -36,7 +36,7 @@ _SYSTEM = (
     "予定や空き時間を聞かれたら、決して『権限がない』等と断らず action=\"calendar\" を返してください。\n\n"
     "必ず次のJSONだけを返す(前後に説明文を付けない):\n"
     '{"reply": "ユーザーに見せる会話文(必須・日本語)", '
-    '"action": "none"|"remember"|"forget"|"list"|"deny"|"calendar", '
+    '"action": "none"|"remember"|"forget"|"list"|"deny"|"calendar"|"runs", '
     '"directives": [{"text": "方針/基本情報の一文", "domain": "global|task|draft|home"}], '
     '"supersede": ["この記憶で置き換える既存方針のid"], '
     '"targets": ["忘れる対象のid"], '
@@ -56,6 +56,8 @@ _SYSTEM = (
     "置き換える古い id を全て supersede に入れた action=\"remember\" を返す。\n"
     "- 忘れて → action=\"forget\"、下記『現在の方針』の id を targets に。reply は一言。\n"
     "- 何覚えてる? → action=\"list\"。reply は一言。\n"
+    "- 『最近何やった?』『今日の活動は?』『何を見た?』等、エージェント自身の実行(クロール)履歴の"
+    "照会 → action=\"runs\"。reply は『最近の実行履歴を確認しますね』等の一言。\n"
     "- 特定の送信元(メールアドレス/ドメイン)からのメールを無視/タスク化しないでと言われたら → "
     "あいまいな方針でなく確実な除外リストに入れる: action=\"deny\"、patterns にその送信元を入れる。\n"
     "domain: global=全般/基本情報, task=タスク抽出, draft=メール返信案, home=家電。"
@@ -155,7 +157,7 @@ async def respond(message: str, history: list[tuple[str, str]] | None = None) ->
                 "directives": [], "targets": []}
 
     action = data.get("action")
-    if action not in {"remember", "forget", "list", "deny", "calendar", "none"}:
+    if action not in {"remember", "forget", "list", "deny", "calendar", "runs", "none"}:
         action = "none"
     out: dict[str, Any] = {
         "action": action,
