@@ -1,0 +1,17 @@
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: always
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ollama_net                        # agent からのみ到達。ホストポート非公開・NPM非経由(内部専用)
+
+networks:
+  ollama_net:
+    external: true
