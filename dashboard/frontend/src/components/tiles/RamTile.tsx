@@ -1,54 +1,52 @@
 import { useStore } from '../../store/useStore';
+import { C, HIST_DISPLAY } from '../../constants';
 import { useViewHistory } from '../../hooks/useViewHistory';
-import { Sparkline } from '../charts/Sparkline';
-import { TileCard, CardLabel, HeroNumber } from './TileCard';
-import { statusColor, fmtBytes, downsample } from '../../utils';
-import { HIST_DISPLAY } from '../../constants';
+import { Card, HeadVal, Stat, Legend } from '../ui';
+import { LineSet } from '../charts';
+import { fmtGB, statusColor, toGB, downsample } from '../../utils';
 
 export function RamTile() {
-  const metrics = useStore(s => s.metrics);
-  const history = useViewHistory();
+  const m = useStore(s => s.metrics?.ram);
+  const win = useViewHistory();
 
-  const ram  = metrics?.ram;
-  const pct  = ram?.percent ?? 0;
-  const data = downsample(history.map(e => e.ram), HIST_DISPLAY);
+  const used = downsample(win.map(e => toGB(e.ram_used)), HIST_DISPLAY);
+  const cached = downsample(win.map(e => toGB(e.ram_cached)), HIST_DISPLAY);
+  const buffers = downsample(win.map(e => toGB(e.ram_buffers)), HIST_DISPLAY);
+  const swap = downsample(win.map(e => toGB(e.swap_used)), HIST_DISPLAY);
 
-  const swapPct = ram?.swap_total
-    ? Math.round(((ram.swap_used ?? 0) / ram.swap_total) * 100)
-    : null;
-
-  const meta = [
-    { label: 'Used',  value: fmtBytes(ram?.used) },
-    { label: 'Cache', value: fmtBytes((ram?.cached ?? 0) + (ram?.buffers ?? 0)) },
-    { label: 'Swap',  value: swapPct != null ? `${swapPct}%` : '—' },
-  ];
+  const pct = m?.percent ?? 0;
 
   return (
-    <TileCard strip={<Sparkline data={data} color="#22c55e" strip />}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <CardLabel>RAM</CardLabel>
-      </div>
-
-      {/* Hero */}
-      <div style={{ marginTop: 10, flexShrink: 0 }}>
-        <HeroNumber
-          value={ram ? pct : '—'}
-          unit={ram ? '%' : undefined}
-          label="Used"
-          color={statusColor(pct)}
+    <Card
+      title="RAM"
+      area="ram"
+      dot={C.accent}
+      head={<HeadVal value={m?.percent != null ? `${m.percent}` : '—'} unit="%" color={statusColor(pct)} />}
+    >
+      <div className="chart">
+        <LineSet
+          series={[
+            { key: 'used', color: C.accent, data: used, fill: true },
+            { key: 'cached', color: C.accent3, data: cached, fill: false },
+            { key: 'buffers', color: C.gold, data: buffers, fill: false },
+          ]}
         />
       </div>
+      <Legend
+        items={[
+          { label: `Used ${fmtGB(m?.used)}`, color: C.accent },
+          { label: `Cached ${fmtGB(m?.cached)}`, color: C.accent3 },
+          { label: `Buffers ${fmtGB(m?.buffers)}`, color: C.gold },
+        ]}
+      />
 
-      {/* Meta grid */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: 6, marginTop: 10 }}>
-        {meta.map(({ label, value }) => (
-          <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontSize: 10, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-          </div>
-        ))}
+      <div className="chart-sm">
+        <LineSet series={[{ key: 'swap', color: C.accent2, data: swap, fill: true }]} />
       </div>
-    </TileCard>
+      <div className="stat-row">
+        <Stat label="Swap Used" value={fmtGB(m?.swap_used)} sm />
+        <Stat label="Swap Total" value={fmtGB(m?.swap_total)} sm />
+      </div>
+    </Card>
   );
 }

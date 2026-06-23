@@ -55,20 +55,24 @@ numa_server/
   - Recharts (チャート)、Zustand (状態管理)、Tailwind CSS v4
 - `proxy_net` 接続。ホストは `127.0.0.1:8088` のみ公開
 - **アクセスは Tailscale 限定** (docker.sock を握る管理ツールのためインターネット非公開)。`tailscale serve --https=443 http://127.0.0.1:8088` で `https://<your-machine>.<your-tailnet>.ts.net/` に配信。NPM の公開ホスト (旧 `dash.s3an.dev`) は無効化済み
-- **2パネル構成:**
+- **3パネル構成:**
   - **SERVER:** CPU / GPU / RAM / Network / Disk（ドーナツ内訳 + I/Oラインチャート）/ Load / Power（CPU+GPU+DRAM合計・内訳）
   - **SERVICES:** ネットワークトポロジーのフロー図 (`FlowDiagram.tsx`) — NPM・各コンテナ・Ollama を接続線で表示。各ノードに CPU/MEM/Disk バーグラフ・start/stop/restart 操作・ログドロワー・Web アクセス数（portfolio のみ）を表示
+  - **HOME:** SwitchBot 機器の監視 (#46)。`home.js` が SwitchBot Cloud API (v1.1) を `HOME_POLL_SECONDS` 間隔(既定90s)でポーリング→正規化→WS配信。deviceType を kind (climate/plug/light/lock/bot/keypad/generic) に分類し `tiles/home/` の対応タイルで描画(未知タイプは汎用タイルで自動表示)。**将来構想: 家の3Dマップ上に機器ステータスをオーバーレイ (#46 フェーズ2・素材待ち)**
 - メトリクス収集: `/proc/*`、`nvidia-smi`、Intel RAPL（CPU+DRAM電力）、`dockerode`
 - WebSocket でリアルタイム配信 (metrics: 2秒、docker/container_stats: 5秒)
 - メトリクス履歴は `dashboard/data/` に2重に永続化:
   - **リングバッファ:** `metrics_history.json`（シャットダウン時 + 60秒毎に保存・最大1時間分）
   - **全履歴:** 日付別 JSONL ファイル `metrics_YYYY-MM-DD.jsonl`（毎エントリ追記・無制限）
+- HOME(SwitchBot)履歴も同方式で `home_history.json`(リング) + `home_YYYY-MM-DD.jsonl`(全履歴) に永続化 (`home-history.js`)
 - 認証: JWT クッキー (`COOKIE_NAME`) + `/auth` エンドポイント。未認証アクセスは `/login.html` にリダイレクト。ログイン試行は 15分に15回のレートリミット
-- シークレット: `dashboard/.env` (`DASHBOARD_PASSWORD`, `JWT_SECRET`, `PORTFOLIO_LOG`)
+- シークレット: `dashboard/.env` (`DASHBOARD_PASSWORD`, `JWT_SECRET`, `PORTFOLIO_LOG`, `SWITCHBOT_TOKEN`, `SWITCHBOT_SECRET`)
   - `PORTFOLIO_LOG`: NPMログファイル名の一部（例: `proxy-host-2`）を指定してポートフォリオのアクセスログのみ集計。未設定時は全NPMアクセスログを合算
+  - `SWITCHBOT_TOKEN`/`SWITCHBOT_SECRET`: SwitchBot Cloud API 認証 (アプリ→プロフィール→設定→開発者向けオプション)。未設定なら HOME パネルは無効。Cloud API は **10,000 req/日**上限のため `HOME_POLL_SECONDS`(既定90s)で調整 (コスト = 機器数 × 86400 ÷ 間隔)
 - REST API（認証済みのみ）:
   - `GET /api/history?from=<ms>&to=<ms>&buckets=<n>` — 全履歴から指定期間を bucket 集計して返す
   - `GET /api/metrics` — 現在のメトリクスを返す
+  - `GET /api/home` — SwitchBot 現在状態 / `GET /api/home/history?from&to&buckets` — 家センサー履歴
   - `GET /api/containers` — コンテナ一覧
   - `POST /api/containers/:name/{start,stop,restart}` — コンテナ操作
 - **コード変更後は要リビルド:** `docker compose build && docker compose up -d`

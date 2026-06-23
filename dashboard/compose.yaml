@@ -13,6 +13,9 @@ services:
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
       - ALLOWED_IPS=${ALLOWED_IPS:-}
+      - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN:-}
+      - SWITCHBOT_SECRET=${SWITCHBOT_SECRET:-}
+      - HOME_POLL_SECONDS=${HOME_POLL_SECONDS:-90}
       - NODE_ENV=production
     volumes:
       - /sys:/sys:ro                                                                           # CPU temp, hwmon fan sensors

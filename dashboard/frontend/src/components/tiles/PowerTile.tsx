@@ -1,64 +1,41 @@
 import { useStore } from '../../store/useStore';
+import { C, HIST_DISPLAY } from '../../constants';
 import { useViewHistory } from '../../hooks/useViewHistory';
-import { PowerChart } from '../charts/PowerChart';
-import { CardLabel } from './TileCard';
-import { downsample } from '../../utils';
-import { HIST_DISPLAY } from '../../constants';
+import { Card, HeadVal, Legend } from '../ui';
+import { LineSet } from '../charts';
+import { fmtW, downsample } from '../../utils';
 
 export function PowerTile() {
-  const metrics = useStore(s => s.metrics);
-  const slice   = useViewHistory();
+  const m = useStore(s => s.metrics?.power);
+  const win = useViewHistory();
 
-  const power = metrics?.power;
-  const fmt   = (w?: number | null) => w != null ? `${w}W` : '—';
-  const total = downsample(slice.map(e => e.pow_total), HIST_DISPLAY);
-  const cpu   = downsample(slice.map(e => e.pow_cpu),   HIST_DISPLAY);
-  const gpu   = downsample(slice.map(e => e.pow_gpu),   HIST_DISPLAY);
-
-  const breakdown = [
-    { color: '#3b82f6', label: 'CPU', value: fmt(power?.cpu) },
-    { color: '#f59e0b', label: 'GPU', value: fmt(power?.gpu) },
-  ];
+  const total = downsample(win.map(e => e.pow_total ?? null), HIST_DISPLAY);
+  const cpu = downsample(win.map(e => e.pow_cpu ?? null), HIST_DISPLAY);
+  const gpu = downsample(win.map(e => e.pow_gpu ?? null), HIST_DISPLAY);
 
   return (
-    <div style={{
-      width: '100%', height: '100%',
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: 12,
-      overflow: 'hidden',
-      padding: '14px 14px 12px',
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* Header: label + total */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexShrink: 0 }}>
-        <CardLabel>Power</CardLabel>
-        <div style={{ lineHeight: 1 }}>
-          <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
-            {power?.total ?? '—'}
-          </span>
-          {power?.total != null && (
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--dim)', marginLeft: 3 }}>W</span>
-          )}
-        </div>
+    <Card
+      title="POWER"
+      area="pow"
+      dot={C.gold}
+      head={<HeadVal value={m?.total != null ? `${Math.round(m.total)}` : '—'} unit="W" />}
+    >
+      <div className="chart">
+        <LineSet
+          series={[
+            { key: 'total', color: C.accent, data: total, fill: true },
+            { key: 'cpu', color: C.accent2, data: cpu, fill: false },
+            { key: 'gpu', color: C.gold, data: gpu, fill: false },
+          ]}
+        />
       </div>
-
-      {/* Chart */}
-      <div style={{ flex: 1, minHeight: 0, marginTop: 10 }}>
-        <PowerChart total={total} cpu={cpu} gpu={gpu} />
-      </div>
-
-      {/* Breakdown */}
-      <div style={{ display: 'flex', gap: 16, flexShrink: 0, marginTop: 10 }}>
-        {breakdown.map(({ color, label, value }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0, display: 'inline-block' }} />
-            <span style={{ fontSize: 11, color: 'var(--dim)' }}>{label}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+      <Legend
+        items={[
+          { label: `Total ${fmtW(m?.total)}`, color: C.accent },
+          { label: `CPU ${fmtW(m?.cpu)}`, color: C.accent2 },
+          { label: `GPU ${fmtW(m?.gpu)}`, color: C.gold },
+        ]}
+      />
+    </Card>
   );
 }

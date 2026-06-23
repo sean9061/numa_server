@@ -18,7 +18,6 @@ export interface Metrics {
     temp?: number;
     power?: number;
     cores?: number[];
-    fan_rpm?: number | null;
   };
   gpu?: GpuData[];
   ram?: {
@@ -66,14 +65,20 @@ export interface Metrics {
 export interface HistoryEntry {
   ts: number;
   cpu: number | null;
+  cpu_temp?: number | null;
   cores: number[];
   gpu: Array<{
     usage: number;
+    temp?: number | null;
     vram_pct: number | null;
     vram_used?: number;
     vram_total?: number;
   }>;
   ram: number | null;
+  ram_used?:    number | null;
+  ram_cached?:  number | null;
+  ram_buffers?: number | null;
+  swap_used?:   number | null;
   net_rx: number | null;
   net_tx: number | null;
   disk_rx: number | null;
@@ -81,6 +86,57 @@ export interface HistoryEntry {
   pow_total: number | null;
   pow_cpu:   number | null;
   pow_gpu:   number | null;
+}
+
+export type HomeKind = 'climate' | 'plug' | 'light' | 'lock' | 'bot' | 'keypad' | 'generic';
+
+export interface HomeDevice {
+  deviceId: string;
+  name: string;
+  type: string;
+  kind: HomeKind;
+  online: boolean;
+  battery: number | null;
+  // climate
+  temperature?: number | null;
+  humidity?: number | null;
+  lightLevel?: number | null;
+  // plug
+  power?: number | null;
+  voltage?: number | null;
+  current?: number | null;
+  energyDay?: number | null;
+  // on/off devices
+  on?: boolean | null;
+  brightness?: number | null;
+  color?: string | null;
+  colorTemp?: number | null;
+  // lock
+  lockState?: string | null;
+  doorState?: string | null;
+  // bot
+  mode?: string | null;
+}
+
+export interface HomeState {
+  devices: HomeDevice[];
+  error: string | null;
+  enabled: boolean;
+}
+
+export interface HomeHistoryEntry {
+  ts: number;
+  devices: Array<{
+    deviceId: string;
+    temperature?: number;
+    humidity?: number;
+    lightLevel?: number;
+    power?: number;
+    voltage?: number;
+    current?: number;
+    battery?: number;
+    brightness?: number;
+  }>;
 }
 
 export interface ContainerInfo {
