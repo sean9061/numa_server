@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 from . import memory, seen
 from .config import settings
 from .llm import make_llm
-from .tools import gcal, gmail, notion
+from .tools import gcal, gmail, moodle, notion
 
 log = logging.getLogger("agent.graph")
 
@@ -53,6 +53,8 @@ class ProposalList(BaseModel):
 class AgentState(TypedDict, total=False):
     emails: list[dict[str, Any]]
     events: list[dict[str, Any]]
+    moodle: list[dict[str, Any]]
+    moodle_expired: bool              # Moodle Cookie 失効を検知した(Discord警告用)
     existing_tasks: list[dict[str, Any]]
     proposals: list[dict[str, Any]]
     applied: list[dict[str, Any]]
@@ -66,14 +68,15 @@ class AgentState(TypedDict, total=False):
 
 _SYSTEM_PROMPT = (
     "あなたは優秀なタスク管理アシスタントです。"
-    "ユーザーの未読/重要メール、今後の予定、既存のタスク一覧が与えられます。"
+    "ユーザーの未読/重要メール、今後の予定、Moodleの課題、既存のタスク一覧が与えられます。"
     "メールや予定の中から、ユーザーが新たに対応すべきアクション(タスク)を抽出してください。"
+    "Moodleの課題(moodle)は締切付きの対応必須タスクなので、既存タスクと重複しない限り必ず提案に含めること。"
     "既存タスクと重複・実質同一のものは提案しないこと。"
     "単なる通知や対応不要なものは含めないこと。"
     "締切は与えられた『本日の日付』を基準に、『6月20日』『明後日』等を必ず YYYY-MM-DD 形式へ変換すること。"
     "\n\n出力は説明文を一切付けず、次の形式の JSON 配列のみを返すこと:\n"
     '[{"title": "日本語の簡潔なタスク名", "due": "YYYY-MM-DD または null", '
-    '"reason": "提案の根拠(どのメール/予定からか)", "source": "由来ID (gmail:.. / calendar:..)"}]\n'
+    '"reason": "提案の根拠(どのメール/予定/課題からか)", "source": "由来ID (gmail:.. / calendar:.. / moodle:..)"}]\n'
     "対応すべきタスクが無ければ空配列 [] を返すこと。"
 )
 
@@ -169,6 +172,12 @@ def _build_source_index(state: AgentState) -> dict[str, dict[str, str]]:
         src = ev.get("source", "")
         if src:
             index[src] = {"url": ev.get("link", ""), "label": f"予定: {ev.get('summary', '(無題の予定)')}"}
+    for m in state.get("moodle", []):
+        src = m.get("source", "")
+        if src:
+            course = m.get("course", "")
+            label = f"課題: {m.get('title', '(無題の課題)')}" + (f" — {course}" if course else "")
+            index[src] = {"url": m.get("link", ""), "label": label}
     return index
 
 
@@ -215,6 +224,10 @@ def finalize_proposals(generated: list["Proposal"], state: AgentState) -> list[d
         e.get("source", ""): (e.get("start", "") or "")[:10]  # 予定開始日(YYYY-MM-DD)
         for e in state.get("events", [])
     }
+    moodle_due = {  # Moodle課題は締切を明示的に持つので最優先で流用する
+        m.get("source", ""): (m.get("due", "") or "")
+        for m in state.get("moodle", [])
+    }
     # 既存タイトルとの重複をプログラム的にも除去 (LLMの取りこぼし対策)
     existing_norm = {_norm(t["title"]) for t in state.get("existing_tasks", [])}
     source_index = _build_source_index(state)
@@ -232,8 +245,11 @@ def finalize_proposals(generated: list["Proposal"], state: AgentState) -> list[d
         if not item.get("due"):  # LLMが取りこぼした締切を決定論的に補完
             tokens = re.split(r"[,\s]+", item.get("source", "") or "")
             text = " ".join(email_text.get(t, "") for t in tokens) + f" {p.reason} {p.title}"
-            due = _due_fallback(text, today)  # ① メール本文等の「○月○日」を解釈
-            if not due:  # ② カレンダー予定由来なら予定開始日を締切に流用
+            # ① Moodle課題由来なら明示の締切を最優先で流用
+            due = next((moodle_due[t] for t in tokens if moodle_due.get(t)), None)
+            if not due:  # ② メール本文等の「○月○日」を解釈
+                due = _due_fallback(text, today)
+            if not due:  # ③ カレンダー予定由来なら予定開始日を締切に流用
                 due = next((event_due[t] for t in tokens if event_due.get(t)), None)
             item["due"] = due
         item.update(_resolve_source(item.get("source"), source_index))  # 由来リンク/ラベルを解決
@@ -244,13 +260,15 @@ def finalize_proposals(generated: list["Proposal"], state: AgentState) -> list[d
 
 
 async def crawl_node(state: AgentState) -> dict[str, Any]:
-    emails, events, existing = await asyncio.gather(
+    emails, events, mdl, existing = await asyncio.gather(
         asyncio.to_thread(gmail.fetch_recent),
         asyncio.to_thread(gcal.fetch_upcoming),
+        asyncio.to_thread(moodle.fetch_assignments),  # 無効/失敗時は []
         asyncio.to_thread(notion.list_tasks),
     )
     emails = memory.filter_denied(emails)  # deny-list の送信元は除外(段階C)
-    return {"emails": emails, "events": events, "existing_tasks": existing}
+    return {"emails": emails, "events": events, "moodle": mdl,
+            "moodle_expired": moodle.session_expired(), "existing_tasks": existing}
 
 
 async def reconcile_node(state: AgentState) -> dict[str, Any]:
@@ -258,6 +276,7 @@ async def reconcile_node(state: AgentState) -> dict[str, Any]:
         "today": dt.date.today().isoformat(),
         "emails": state.get("emails", []),
         "events": state.get("events", []),
+        "moodle": state.get("moodle", []),  # Moodle課題(締切付き・対応必須タスク)
         "existing_tasks": [t["title"] for t in state.get("existing_tasks", [])],
         "max_proposals": settings.max_proposals_per_run,
     }

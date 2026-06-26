@@ -252,7 +252,18 @@ async def execute_node(state: AgentState) -> dict[str, Any]:
 
 async def integrate_node(state: AgentState) -> dict[str, Any]:
     """scratchpad の候補を統合し finalize_proposals で最終化する。"""
-    findings = state.get("scratchpad", [])
+    findings = list(state.get("scratchpad", []))
+    # Moodle課題は構造化済みの締切付きタスク。計画/LLMに依らず確実に候補へ加える
+    # (整合は finalize_proposals が既存・記憶済みと突合して重複除去する)。
+    for m in state.get("moodle", []):
+        if m.get("title") and m.get("source"):
+            course = m.get("course", "")
+            findings.append({
+                "title": m["title"],
+                "due": m.get("due"),
+                "reason": "Moodleの課題" + (f"({course})" if course else ""),
+                "source": m["source"],
+            })
     if not findings:
         log.info("integrate: 候補なし → 提案 0件")
         return {"proposals": []}
