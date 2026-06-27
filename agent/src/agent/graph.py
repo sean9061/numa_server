@@ -335,7 +335,7 @@ def _route_after_review(state: AgentState) -> str:
     return "apply" if state.get("approved") else "end"
 
 
-def build_graph(checkpointer: BaseCheckpointSaver):
+def build_graph(checkpointer: BaseCheckpointSaver | None = None):
     builder = StateGraph(AgentState)
     builder.add_node("crawl", crawl_node)
     builder.add_node("reconcile", reconcile_node)

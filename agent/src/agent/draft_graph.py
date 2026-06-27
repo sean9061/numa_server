@@ -174,7 +174,7 @@ async def compose_node(state: DraftState) -> dict[str, Any]:
     return {"suggestions": suggestions}
 
 
-def build_draft_graph(checkpointer: BaseCheckpointSaver):
+def build_draft_graph(checkpointer: BaseCheckpointSaver | None = None):
     builder = StateGraph(DraftState)
     builder.add_node("gather", gather_node)
     builder.add_node("compose", compose_node)

@@ -293,7 +293,7 @@ def _route_after_plan(state: AgentState) -> str:
     return "execute"
 
 
-def build_orchestrator_graph(checkpointer: BaseCheckpointSaver):
+def build_orchestrator_graph(checkpointer: BaseCheckpointSaver | None = None):
     builder = StateGraph(AgentState)
     builder.add_node("gather", crawl_node)        # graph.crawl_node を再利用
     builder.add_node("plan", plan_node)
