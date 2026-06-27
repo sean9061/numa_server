@@ -87,8 +87,14 @@ def _excluded(title: str) -> bool:
 
 
 def _parse_ics(text: str) -> list[dict]:
-    """iCal 本文から VEVENT を抽出し共通 dict 形に正規化する。過去の締切・開始マーカーは除外。"""
+    """iCal 本文から VEVENT を抽出し共通 dict 形に正規化する。
+
+    過去の締切・開始マーカーは除外し、今日から moodle_lookahead_days 日先までの締切のみ残す
+    (先の課題はまだ授業を受けていないので取り込まない)。
+    """
     today = dt.date.today()
+    today_s = today.isoformat()
+    horizon = (today + dt.timedelta(days=settings.moodle_lookahead_days)).isoformat()
     out: list[dict] = []
     cur: dict[str, str] = {}
     in_event = False
@@ -99,8 +105,9 @@ def _parse_ics(text: str) -> list[dict]:
         if line == "END:VEVENT":
             in_event = False
             item = _event_to_item(cur)
+            due = item["due"] if item else None
             if (item and not _excluded(item["title"])
-                    and (item["due"] is None or item["due"] >= today.isoformat())):
+                    and (due is None or today_s <= due <= horizon)):
                 out.append(item)
             continue
         if not in_event or ":" not in line:

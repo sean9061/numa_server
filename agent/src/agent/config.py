@@ -129,6 +129,8 @@ class Settings(BaseSettings):
     # 毎クロール自動でゲートウェイ通過→iCal取得する。初回のみ scripts/moodle_login.py で人手ログイン。
     moodle_enabled: bool = False
     moodle_ical_url: str = ""            # カレンダー→エクスポート→「カレンダーのURLを取得」で得るURL
+    # 今日から何日先までの締切を取り込むか。先の課題はまだ授業を受けていないので近い分だけ。
+    moodle_lookahead_days: int = 7
     # この語で終わるイベントは除外する(カンマ区切り)。既定: 「開始」マーカー(=受験/提出が
     # 可能になった通知でありタスクではない)を落とし、提出期限・「終了」等の締切系だけ残す。
     moodle_exclude_suffixes: str = "開始"
