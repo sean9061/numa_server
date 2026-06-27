@@ -123,13 +123,12 @@ class Settings(BaseSettings):
     notion_tag_prop: str = "Tags"           # multi_select / select 型のプロパティ名
     notion_agent_tag: str = "Agent"         # 挿入者を示すタグ値
 
-    # --- Moodle (Phase 1.5 — SSOゲートウェイ背後・Cookie注入・読取専用) ---
-    # サイト全体が Google SSO ゲートウェイの内側にあり、トークン系の手段は全て遮断される。
-    # ブラウザでログイン後のセッションCookieを注入し、iCalエクスポートURLを取得→パースする。
-    # Cookie は失効するため、失効検知時は実行サマリ(Discord)に警告を出す→手動で貼り直す。
+    # --- Moodle (Phase 1.5 — Google SSO自動ログイン(Playwright)・読取専用) ---
+    # サイト全体が Google SSO ゲートウェイの内側にあり、トークン系・Cookie注入では維持不可
+    # (Cookieは約2時間で失効)。Playwright の永続プロファイルで Google セッションを保持し、
+    # 毎クロール自動でゲートウェイ通過→iCal取得する。初回のみ scripts/moodle_login.py で人手ログイン。
     moodle_enabled: bool = False
     moodle_ical_url: str = ""            # カレンダー→エクスポート→「カレンダーのURLを取得」で得るURL
-    moodle_cookie: str = ""             # ブラウザのCookieヘッダ文字列 ("name1=v1; name2=v2; ...")
     # この語で終わるイベントは除外する(カンマ区切り)。既定: 「開始」マーカー(=受験/提出が
     # 可能になった通知でありタスクではない)を落とし、提出期限・「終了」等の締切系だけ残す。
     moodle_exclude_suffixes: str = "開始"

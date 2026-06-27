@@ -6,6 +6,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Moodle(Phase 1.5) SSO自動ログイン用: Chromium + 依存 + 初回ログイン用の仮想ディスプレイ/VNC
+RUN playwright install --with-deps chromium && \
+    apt-get update && apt-get install -y --no-install-recommends xvfb x11vnc && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY src/ ./src/
 
 ENV PYTHONUNBUFFERED=1 \

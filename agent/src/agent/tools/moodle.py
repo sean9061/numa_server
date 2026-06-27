@@ -1,63 +1,30 @@
 """Moodle 連携 (Phase 1.5) — 読み取り専用。
 
-この学校 Moodle はサイト全体が **Google SSO ゲートウェイ**の内側にあり、WS APIトークン・
-フォームログイン・iCalトークンURL のいずれも(セッション無しでは)Googleログインへ
-リダイレクトされて素通りできない。そこで **ブラウザのログイン後セッションCookie**を注入し、
-カレンダーの iCal エクスポートURLを取得→VEVENTをパースする。
+この学校 Moodle はサイト全体が **Google SSO ゲートウェイ**の内側にあり、httpx 等では突破不可。
+そこで **Playwright(永続ブラウザプロファイル)で Google セッションを維持**し、毎クロール
+自動でゲートウェイを通過して iCal エクスポートを取得→VEVENTをパースする(`moodle_auth.py`)。
 
-Cookie は失効するため、レスポンスが iCal でない(=Googleへリダイレクト)場合は「セッション失効」
-として検知し、`session_expired()` で True を返す→実行サマリ(Discord)に警告を出して手動更新を促す。
+初回のみ `scripts/moodle_login.py` で人間が Google にログイン(MFA含む)。以降は自動。
+Google セッションが切れると `NeedsLogin` を検知し `session_expired()`=True →
+実行サマリ(Discord)に「再ログインが必要」と出す。
 
 返すアイテムは gmail/gcal と同じ共通 dict 形 ({source, link, title, due, course}) で、
-graph.crawl_node から他ソースと同列に reconcile/integrate へ渡る。
-
-設定(ブラウザで通常ログイン後): ①カレンダー→エクスポート→「カレンダーのURLを取得」で
-得たURLを MOODLE_ICAL_URL に。②開発者ツール→Network でそのドメインのリクエストの
-Cookie ヘッダ文字列をコピーして MOODLE_COOKIE に。"""
+graph.crawl_node から他ソースと同列に reconcile/integrate へ渡る。"""
 from __future__ import annotations
 
 import datetime as dt
 import logging
 import re
-import ssl
-
-import httpx
 
 from ..config import settings
+from . import moodle_auth
 
 log = logging.getLogger("agent.tools.moodle")
 
-_TIMEOUT = httpx.Timeout(30.0)
-_UA = "Mozilla/5.0 (compatible; numa-agent/1.0; +local)"
 _JST = dt.timezone(dt.timedelta(hours=9))
 
 
-def _ssl_context() -> ssl.SSLContext:
-    """この学校Moodleは弱い finite-field DHE(1024bit) と強い ECDHE の両方を
-    提供しており、サーバが前者を選ぶと DH_KEY_TOO_SMALL で弾かれる。
-    DHE 系暗号スイートを除外して ECDHE を選ばせる(証明書検証・署名強度は既定のまま維持)。"""
-    ctx = ssl.create_default_context()
-    ctx.set_ciphers("DEFAULT:!DHE")
-    return ctx
-
-
-def make_client() -> httpx.Client:
-    """Moodle 用に設定済みの httpx.Client を返す(probe と本体で共用)。
-
-    MOODLE_COOKIE があれば SSO ゲートウェイ通過用に Cookie ヘッダとして注入する。
-    """
-    headers = {"User-Agent": _UA}
-    if settings.moodle_cookie:
-        headers["Cookie"] = settings.moodle_cookie.strip()
-    return httpx.Client(
-        timeout=_TIMEOUT,
-        follow_redirects=True,
-        headers=headers,
-        verify=_ssl_context(),
-    )
-
-
-# 直近の取得でセッション失効(iCalでなくSSOへリダイレクト)を検知したか。
+# 直近の取得で再ログインが必要(Googleセッション失効)と判明したか。
 # crawl_node が読み出して実行サマリ(Discord)に警告を出すために使う。
 _session_expired = False
 
@@ -67,7 +34,7 @@ def session_expired() -> bool:
 
 
 def _enabled() -> bool:
-    return bool(settings.moodle_enabled and settings.moodle_ical_url and settings.moodle_cookie)
+    return bool(settings.moodle_enabled and settings.moodle_ical_url)
 
 
 # --- iCal(RFC 5545) パース ---------------------------------------------------
@@ -161,30 +128,17 @@ def _event_to_item(ev: dict[str, str]) -> dict | None:
     }
 
 
-class SessionExpired(RuntimeError):
-    """iCal でなく SSO ログインへリダイレクトされた = Cookie 失効。"""
-
-
 def fetch_ical(url: str | None = None) -> list[dict]:
-    """iCal エクスポートURLを取得してパースする(probe と本体で共用)。
-
-    レスポンスが iCal でなければ Cookie 失効とみなし SessionExpired を送出する。
-    """
-    target = url or settings.moodle_ical_url
-    with make_client() as client:
-        r = client.get(target)
-        r.raise_for_status()
-        if "BEGIN:VCALENDAR" not in r.text:
-            raise SessionExpired(
-                f"iCalでないレスポンス(最終URL={r.url})。Cookie失効の可能性"
-            )
-        return _parse_ics(r.text)
+    """Playwright で iCal 本文を取得してパースする(probe と本体で共用)。"""
+    text = moodle_auth.fetch_ical_text(url or settings.moodle_ical_url)
+    return _parse_ics(text)
 
 
 def fetch_assignments() -> list[dict]:
     """Moodle カレンダーの iCal から今後の課題締切を取得する。無効時/失敗時は空リスト。
 
-    Cookie 失効時は session_expired() が True になる(crawl_node が拾って Discord 通知)。
+    Google セッション失効時は session_expired() が True になる(crawl_node が拾って
+    Discord に「再ログインが必要」と通知)。
     """
     global _session_expired
     _session_expired = False
@@ -192,9 +146,9 @@ def fetch_assignments() -> list[dict]:
         return []
     try:
         items = fetch_ical()
-    except SessionExpired as e:
+    except moodle_auth.NeedsLogin as e:
         _session_expired = True
-        log.warning("Moodle: セッション失効 — MOODLE_COOKIE の更新が必要 (%s)", e)
+        log.warning("Moodle: 再ログインが必要 — scripts/moodle_login.py を実行 (%s)", e)
         return []
     except Exception:
         log.exception("Moodle: 取得に失敗 (返信案/クロールは継続)")

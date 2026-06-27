@@ -248,7 +248,7 @@ def _crawl_saw_line(saw: dict[str, Any]) -> str:
     parts.append(f"既存タスク{saw.get('existing_tasks', 0)}")
     line = "確認: " + " ・ ".join(parts)
     if saw.get("moodle_expired"):
-        line += "\n⚠ Moodleセッション失効: MOODLE_COOKIE を更新してください"
+        line += "\n⚠ Moodle再ログインが必要: scripts/moodle_login.py を実行してください"
     plan = saw.get("plan")
     if plan:  # orchestrator の計画
         line += f"\n計画: {len(plan)}サブタスク (" + ", ".join(s.get("type", "?") for s in plan) + ")"
