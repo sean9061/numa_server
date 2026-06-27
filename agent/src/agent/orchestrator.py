@@ -96,6 +96,9 @@ _INTEGRATE_SYSTEM = (
     "Moodle由来の候補(sourceが「moodle:」で始まる)のタイトルはMoodleのイベント名そのままで分かりにくい。"
     "『〜終了』『〜の受験可能期間の終了』は受付の締切を意味するので、"
     "『〜の提出締切』『〜を提出する』のようにユーザーが一目で分かる簡潔なタスク名に書き直すこと(締切日や事実は変えない)。"
+    "さらに Moodle由来のタスクは、タイトルの先頭に講義名を『講義名: 』の形で付けること。"
+    "講義名は候補の course から取り、末尾の科目コードや括弧書き(例: (2026_L30801)、[CS]、[IT・1])は省いて簡潔にする。"
+    "例: 『企業と経営: 第10回アサインメントを提出する』。"
     "research は判断を補強する参考情報です。research を使って候補の根拠(reason)や締切(due)を"
     "補ってよいですが、research だけを根拠にタスクを創作しないこと(候補に紐づく場合のみ)。"
     "与えられた情報の範囲で統合・整理するだけで、新たな事実を創作しないこと。"
@@ -266,6 +269,7 @@ async def integrate_node(state: AgentState) -> dict[str, Any]:
                 "due": m.get("due"),
                 "reason": "Moodleの課題" + (f"({course})" if course else ""),
                 "source": m["source"],
+                "course": course,
             })
     if not findings:
         log.info("integrate: 候補なし → 提案 0件")
