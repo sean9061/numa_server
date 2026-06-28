@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Metrics, HistoryEntry, ContainerInfo, ContainerStats, HomeState, HomeHistoryEntry } from '../types';
+import type { Metrics, HistoryEntry, ContainerInfo, ContainerStats, HomeState, HomeHistoryEntry, AgentGraphs, AgentRun } from '../types';
 import { MAX_HIST } from '../constants';
 
 function buildHistoryEntry(d: Metrics): HistoryEntry {
@@ -31,7 +31,7 @@ function buildHistoryEntry(d: Metrics): HistoryEntry {
 }
 
 type WsStatus = 'connecting' | 'connected' | 'reconnecting';
-type Panel = 'server' | 'services' | 'home';
+type Panel = 'server' | 'services' | 'home' | 'agent';
 
 const HOME_MAX_HIST = 1440; // mirrors backend home ring
 
@@ -66,6 +66,11 @@ interface Store {
   homeExtLoading: boolean;
   homeExtRangeMs: number | null;
 
+  // Agent (LangGraph) panel (#72)
+  agentGraphs: AgentGraphs | null;
+  agentRuns: AgentRun[];
+  agentLoading: boolean;
+
   // Actions
   setMetrics: (d: Metrics) => void;
   setHistory: (entries: HistoryEntry[]) => void;
@@ -78,6 +83,7 @@ interface Store {
   setContainers: (c: ContainerInfo[]) => void;
   updateContainerStats: (arr: Array<{ name: string; stats: ContainerStats | null }>) => void;
   setActivePanel: (p: Panel) => void;
+  loadAgent: () => Promise<void>;
   setSelectedService: (name: string | null) => void;
   appendLog: (container: string, line: string) => void;
   clearLogs: () => void;
@@ -105,6 +111,10 @@ export const useStore = create<Store>((set, get) => ({
   homeExtHistory: null,
   homeExtLoading: false,
   homeExtRangeMs: null,
+
+  agentGraphs: null,
+  agentRuns: [],
+  agentLoading: false,
 
   setMetrics: (d) => {
     const entry = buildHistoryEntry(d);
@@ -191,6 +201,23 @@ export const useStore = create<Store>((set, get) => ({
   }),
 
   setActivePanel: (activePanel) => set({ activePanel }),
+
+  loadAgent: async () => {
+    set({ agentLoading: true });
+    try {
+      const [graphs, runs] = await Promise.all([
+        get().agentGraphs
+          ? Promise.resolve(get().agentGraphs as AgentGraphs)
+          : fetch('/api/agent/graphs', { credentials: 'include' }).then(r => r.json() as Promise<AgentGraphs>),
+        fetch('/api/agent/runs?limit=30', { credentials: 'include' }).then(r => r.json() as Promise<AgentRun[]>),
+      ]);
+      set({ agentGraphs: graphs, agentRuns: Array.isArray(runs) ? runs : [] });
+    } catch {
+      // 取得失敗時は空のまま (パネル側で「取得失敗/未稼働」を表示)
+    } finally {
+      set({ agentLoading: false });
+    }
+  },
 
   setSelectedService: (name) => set({ selectedService: name, logLines: [] }),
 

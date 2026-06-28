@@ -154,3 +154,27 @@ export interface ContainerStats {
   disk_r_sec?: number;
   disk_w_sec?: number;
 }
+
+// --- Agent (LangGraph) panel (#72) ---
+export interface GraphEdge {
+  source: string;
+  target: string;
+  conditional: boolean;
+}
+export interface GraphDef {
+  nodes: string[];
+  edges: GraphEdge[];
+}
+export type AgentGraphs = Record<string, GraphDef>;
+
+export interface AgentRun {
+  ts: string;
+  ended?: string;
+  trigger: string;          // startup | schedule | manual
+  kind: string;             // crawl | draft | apply
+  mode?: string;            // orchestrator | simple | ""
+  saw?: Record<string, unknown>;
+  did?: Record<string, unknown>;
+  outcome: string;          // applied | proposed | awaiting_approval | suggested | none | error
+  error?: string;
+}

@@ -11,6 +11,7 @@ import { listContainers, getContainerStats, containerAction, streamContainerLogs
 import { pushEntry, getEntries, loadFromDisk, saveToDisk, queryHistory } from './history.js';
 import { startHomePolling, getHomeState } from './home.js';
 import { pushHomeEntry, getHomeEntries, loadHomeFromDisk, saveHomeToDisk, queryHomeHistory } from './home-history.js';
+import { getGraphs, getRuns } from './agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT ?? 3000;
@@ -84,6 +85,24 @@ app.get('/api/home/history', apiAuth, async (req, res) => {
 app.get('/api/metrics', apiAuth, async (_req, res) => {
   try {
     res.json(await collectMetrics());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- エージェント (LangGraph) パネル (#72) ---
+app.get('/api/agent/graphs', apiAuth, async (_req, res) => {
+  try {
+    res.json(await getGraphs());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/agent/runs', apiAuth, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 200);
+    res.json(await getRuns(limit));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -443,3 +443,46 @@ body {
   .card { padding: 12px 13px; }
   .load-cell .lv { font-size: 18px; }
 }
+
+/* --- Agent (LangGraph) panel (#72) --- */
+.agent-panel {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.9fr);
+  gap: var(--gap);
+  overflow: hidden;
+}
+.agent-graph-box, .agent-runs-box {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 12px 14px;
+}
+.agent-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.agent-tab {
+  font: inherit; font-size: 12px; padding: 4px 12px; cursor: pointer;
+  background: var(--surface-2); color: var(--dim);
+  border: 1px solid var(--border); border-radius: 99px;
+}
+.agent-tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 700; }
+.agent-graph { width: 100%; flex: 1; min-height: 0; overflow: auto; }
+.agent-runs-title { font-size: 12px; font-weight: 700; color: var(--dim); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; }
+.agent-runs { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 2px; }
+.agent-run { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+.agent-run-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 5px; }
+.agent-run-when { font-size: 12px; color: var(--text); font-weight: 600; }
+.agent-badge { font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--track); color: var(--text); }
+.agent-badge.dim { color: var(--muted); }
+.agent-run-outcome { font-size: 11px; margin-left: auto; white-space: nowrap; }
+.agent-run-line { font-size: 12px; color: var(--dim); margin-top: 2px; }
+.agent-run-k { color: var(--muted); margin-right: 6px; }
+.agent-run-warn { font-size: 11.5px; color: var(--warn); margin-top: 4px; }
+.agent-run-err { font-size: 11.5px; color: var(--crit); margin-top: 4px; word-break: break-word; }
+.agent-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 13px; }
+
+@media (max-width: 1100px) {
+  .agent-panel {
+    height: auto; min-height: calc(100dvh - 96px);
+    grid-template-columns: 1fr; grid-auto-rows: auto; overflow: visible;
+  }
+  .agent-graph-box { min-height: 260px; }
+  .agent-runs-box  { min-height: 320px; }
+}

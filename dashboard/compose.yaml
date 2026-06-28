@@ -16,6 +16,7 @@ services:
       - SWITCHBOT_TOKEN=${SWITCHBOT_TOKEN:-}
       - SWITCHBOT_SECRET=${SWITCHBOT_SECRET:-}
       - HOME_POLL_SECONDS=${HOME_POLL_SECONDS:-90}
+      - AGENT_DATA_DIR=/agent-data
       - NODE_ENV=production
     volumes:
       - /sys:/sys:ro                                                                           # CPU temp, hwmon fan sensors
@@ -23,6 +24,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro                                          # Docker stats & logs
       - ./data:/app/data                                                                      # Persistent metrics history
       - ../proxy/data/logs:/npm-logs:ro                                                       # NPM access logs for web tracking
+      - ../agent/data:/agent-data:ro                                                          # Agent run history (runs.jsonl) for the AGENT panel (#72)
     cap_add:
       - SYS_RAWIO   # Intel RAPL powercap access
     deploy:
