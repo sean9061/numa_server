@@ -1,0 +1,9 @@
+{
+  "dependencies": ["."],
+  "graphs": {
+    "task": "agent.studio:task",
+    "orchestrator": "agent.studio:orchestrator",
+    "draft": "agent.studio:draft"
+  },
+  "env": "./.env"
+}

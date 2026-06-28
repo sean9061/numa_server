@@ -162,12 +162,16 @@ class AgentRuntime:
 def _crawl_saw(result: dict[str, Any]) -> dict[str, Any]:
     emails = result.get("emails", [])
     events = result.get("events", [])
+    mdl = result.get("moodle", [])
     saw: dict[str, Any] = {
         "emails": len(emails),
         "events": len(events),
+        "moodle": len(mdl),
+        "moodle_expired": bool(result.get("moodle_expired")),
         "existing_tasks": len(result.get("existing_tasks", [])),
         "email_subjects": [e.get("subject", "") for e in emails],
         "event_summaries": [ev.get("summary", "") for ev in events],
+        "moodle_titles": [m.get("title", "") for m in mdl],
     }
     plan = result.get("plan") or []
     if plan:  # orchestrator のサブタスク計画

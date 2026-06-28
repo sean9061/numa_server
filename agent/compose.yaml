@@ -16,6 +16,27 @@ services:
     networks:
       - ollama_net                      # Ollama (http://ollama:11434) への到達 + 外部API egress
 
+  # LangGraph Studio 用の dev サーバ (#72)。グラフ(task/orchestrator/draft)を可視化する。
+  # agent と同じイメージ・同じ .env/data を使い、ホストの 127.0.0.1:2024 にのみ公開。
+  # tailnet配信は host 側で: tailscale serve --bg --https=8444 http://127.0.0.1:2024
+  # Studio URL: https://smith.langchain.com/studio/?baseUrl=https://<machine>.<tailnet>.ts.net:8444
+  studio:
+    image: numa-agent                   # agent サービスがビルドした像を共用
+    container_name: agent-studio
+    restart: always
+    env_file: .env
+    environment:
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:2024:2024"           # ホストloopbackのみ。外部公開は tailscale serve 経由
+    entrypoint: ["langgraph", "dev", "--host", "0.0.0.0", "--port", "2024", "--no-browser"]
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ollama_net
+
 networks:
   ollama_net:
     external: true

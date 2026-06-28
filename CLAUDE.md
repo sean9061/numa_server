@@ -83,10 +83,12 @@ numa_server/
   ```
 
 ### `agent/` — ローカルLLM自律エージェント (Python + LangGraph)
-- Gmail(読取専用)+Calendar→LLM突合→Notion にタスク反映、メール返信案の提示(読取専用)を行う。**真実の源は `agent/ROADMAP.md`**、進捗は issue #59。
+- Gmail(読取専用)+Calendar+Moodle(課題締切)→LLM突合→Notion にタスク反映、メール返信案の提示(読取専用)を行う。**真実の源は `agent/ROADMAP.md`**、進捗は issue #59。
 - `ollama_net` のみ接続 (Ollama 到達 + 外部API egress)。ホストポート非公開。Docker socket/ホストFSは非マウント。
 - 通知・HITL承認は **Discord**。状態は `AsyncSqliteSaver`(`data/checkpoints.sqlite`)。
 - クロールは `CRAWL_HOURS` の時刻指定(cron, 既定 1日7回)。`ORCHESTRATOR_ENABLED` で「計画→逐次実行→統合」のマネージャ・オーケストレータ、`WEB_RESEARCH_ENABLED` で SearXNG 経由の Web リサーチを有効化 (#62)。
+- **Moodle(Phase 1.5)**: サイトが Google SSO ゲートウェイ内のため Playwright の永続プロファイル(`data/moodle_profile`)で自動ログインし iCal から課題締切を取得(`MOODLE_ENABLED`)。初回のみ `scripts/moodle_login.py`(VNC)で人手ログイン、以降は自動。失効時は Discord に再ログイン通知。イメージに Chromium 同梱。
+- **LangGraph Studio (#72)**: `studio` サービス(agentと同イメージ)が `langgraph dev` を `127.0.0.1:2024` で常設(`restart: always`)。`tailscale serve --bg --https=8444 http://127.0.0.1:2024` で tailnet 限定配信し、`https://smith.langchain.com/studio/?baseUrl=https://<machine>.<tailnet>.ts.net:8444` でグラフ(task/orchestrator/draft)を可視化。`docker compose up -d` で agent と共に起動。グラフ定義は `src/agent/studio.py` + `langgraph.json`。
 - シークレットは `agent/.env`(chmod 600) と `data/` のトークンのみ。**コード変更後は要リビルド:** `docker compose build && docker compose up -d`
 
 ### `searxng/` — メタ検索 (agent の Web リサーチ用)

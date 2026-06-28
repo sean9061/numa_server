@@ -93,6 +93,12 @@ _INTEGRATE_SYSTEM = (
     "あなたはタスク管理アシスタントの『編集者』です。"
     "各サブタスクが見つけたタスク候補(candidates)と、調査メモ(research)が与えられます。"
     "実質的に重複する候補は1つに統合し、ユーザーが対応すべき最終タスク一覧に整えてください。"
+    "Moodle由来の候補(sourceが「moodle:」で始まる)のタイトルはMoodleのイベント名そのままで分かりにくい。"
+    "『〜終了』『〜の受験可能期間の終了』は受付の締切を意味するので、"
+    "『〜の提出締切』『〜を提出する』のようにユーザーが一目で分かる簡潔なタスク名に書き直すこと(締切日や事実は変えない)。"
+    "さらに Moodle由来のタスクは、タイトルの先頭に講義名を『講義名: 』の形で付けること。"
+    "講義名は候補の course から取り、末尾の科目コードや括弧書き(例: (2026_L30801)、[CS]、[IT・1])は省いて簡潔にする。"
+    "例: 『企業と経営: 第10回アサインメントを提出する』。"
     "research は判断を補強する参考情報です。research を使って候補の根拠(reason)や締切(due)を"
     "補ってよいですが、research だけを根拠にタスクを創作しないこと(候補に紐づく場合のみ)。"
     "与えられた情報の範囲で統合・整理するだけで、新たな事実を創作しないこと。"
@@ -252,7 +258,19 @@ async def execute_node(state: AgentState) -> dict[str, Any]:
 
 async def integrate_node(state: AgentState) -> dict[str, Any]:
     """scratchpad の候補を統合し finalize_proposals で最終化する。"""
-    findings = state.get("scratchpad", [])
+    findings = list(state.get("scratchpad", []))
+    # Moodle課題は構造化済みの締切付きタスク。計画/LLMに依らず確実に候補へ加える
+    # (整合は finalize_proposals が既存・記憶済みと突合して重複除去する)。
+    for m in state.get("moodle", []):
+        if m.get("title") and m.get("source"):
+            course = m.get("course", "")
+            findings.append({
+                "title": m["title"],
+                "due": m.get("due"),
+                "reason": "Moodleの課題" + (f"({course})" if course else ""),
+                "source": m["source"],
+                "course": course,
+            })
     if not findings:
         log.info("integrate: 候補なし → 提案 0件")
         return {"proposals": []}
@@ -275,7 +293,7 @@ def _route_after_plan(state: AgentState) -> str:
     return "execute"
 
 
-def build_orchestrator_graph(checkpointer: BaseCheckpointSaver):
+def build_orchestrator_graph(checkpointer: BaseCheckpointSaver | None = None):
     builder = StateGraph(AgentState)
     builder.add_node("gather", crawl_node)        # graph.crawl_node を再利用
     builder.add_node("plan", plan_node)

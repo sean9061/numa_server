@@ -242,9 +242,13 @@ def _run_headline(run: dict[str, Any]) -> str:
 
 
 def _crawl_saw_line(saw: dict[str, Any]) -> str:
-    parts = [f"メール{saw.get('emails', 0)}", f"予定{saw.get('events', 0)}",
-             f"既存タスク{saw.get('existing_tasks', 0)}"]
+    parts = [f"メール{saw.get('emails', 0)}", f"予定{saw.get('events', 0)}"]
+    if saw.get("moodle"):
+        parts.append(f"課題{saw.get('moodle', 0)}")
+    parts.append(f"既存タスク{saw.get('existing_tasks', 0)}")
     line = "確認: " + " ・ ".join(parts)
+    if saw.get("moodle_expired"):
+        line += "\n⚠ Moodle再ログインが必要: scripts/moodle_login.py を実行してください"
     plan = saw.get("plan")
     if plan:  # orchestrator の計画
         line += f"\n計画: {len(plan)}サブタスク (" + ", ".join(s.get("type", "?") for s in plan) + ")"
