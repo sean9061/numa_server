@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
-import type { AgentRun, GraphDef } from '../../types';
+import type { AgentRun, AgentStatus, GraphDef } from '../../types';
 
 // --- グラフ図 (層別レイアウト) ---------------------------------------------
 const NODE_W = 116;
@@ -38,7 +38,7 @@ function layout(def: GraphDef): { nodes: Placed[]; w: number; h: number } {
   return { nodes: placed, w: maxRowW + PAD * 2, h: PAD * 2 + (maxR + 1) * NODE_H + maxR * GAP_Y };
 }
 
-function GraphView({ def }: { def: GraphDef }) {
+function GraphView({ def, activeNode }: { def: GraphDef; activeNode?: string | null }) {
   const { nodes, w, h } = useMemo(() => layout(def), [def]);
   const pos = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n])), [nodes]);
 
@@ -73,19 +73,20 @@ function GraphView({ def }: { def: GraphDef }) {
       })}
       {nodes.map((n) => {
         const term = TERMINAL.has(n.id);
+        const active = n.id === activeNode;
         return (
-          <g key={n.id}>
+          <g key={n.id} className={active ? 'agent-node-active' : undefined}>
             <rect
               x={n.x} y={n.y} width={NODE_W} height={NODE_H} rx={8}
-              fill={term ? 'var(--accent)' : 'var(--surface-2)'}
-              stroke={term ? 'var(--accent)' : 'var(--border)'}
-              strokeWidth={1}
+              fill={active ? 'var(--gold)' : term ? 'var(--accent)' : 'var(--surface-2)'}
+              stroke={active ? 'var(--gold)' : term ? 'var(--accent)' : 'var(--border)'}
+              strokeWidth={active ? 2 : 1}
             />
             <text
               x={n.x + NODE_W / 2} y={n.y + NODE_H / 2 + 4}
               textAnchor="middle" fontSize={13}
-              fill={term ? 'var(--bg)' : 'var(--text)'}
-              fontWeight={term ? 700 : 500}
+              fill={active || term ? 'var(--bg)' : 'var(--text)'}
+              fontWeight={active || term ? 700 : 500}
             >
               {LABEL[n.id] ?? n.id}
             </text>
@@ -156,6 +157,9 @@ export function AgentPanel() {
   const loading = useStore((s) => s.agentLoading);
   const loadAgent = useStore((s) => s.loadAgent);
   const [sel, setSel] = useState('orchestrator');
+  const [userPicked, setUserPicked] = useState(false); // 手動でタブを選んだか
+  const [status, setStatus] = useState<AgentStatus>({ running: false, graph: null, node: null });
+  const prevRunning = useRef(false);
 
   useEffect(() => {
     loadAgent();
@@ -163,9 +167,30 @@ export function AgentPanel() {
     return () => clearInterval(t);
   }, [loadAgent]);
 
+  // ライブ状態を2秒間隔でポーリング (#72 段階2)
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try {
+        const s = (await fetch('/api/agent/status', { credentials: 'include' }).then((r) => r.json())) as AgentStatus;
+        if (alive) setStatus(s);
+        // 実行が終わった瞬間に履歴を取り直す
+        if (alive && prevRunning.current && !s.running) loadAgent();
+        prevRunning.current = !!s?.running;
+      } catch { /* 無視 */ }
+    };
+    poll();
+    const t = setInterval(poll, 2_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [loadAgent]);
+
   const names = graphs ? GRAPH_ORDER.filter((n) => graphs[n]) : [];
-  const active = graphs?.[sel] ? sel : names[0];
+  // 実行中はそのグラフを自動表示 (ユーザーが手動でタブを触っていない限り)
+  const running = status.running && status.graph;
+  const effectiveSel = running && !userPicked && graphs?.[status.graph!] ? status.graph! : sel;
+  const active = graphs?.[effectiveSel] ? effectiveSel : names[0];
   const def = active ? graphs?.[active] : undefined;
+  const activeNode = running && status.graph === active ? status.node : null;
 
   return (
     <main className="agent-panel">
@@ -175,11 +200,14 @@ export function AgentPanel() {
             <button
               key={n}
               className={`agent-tab${active === n ? ' active' : ''}`}
-              onClick={() => setSel(n)}
+              onClick={() => { setSel(n); setUserPicked(true); }}
             >{n}</button>
           ))}
+          <span className={`agent-live${running ? ' on' : ''}`}>
+            {running ? `● 実行中: ${status.node ?? '…'}` : '○ idle'}
+          </span>
         </div>
-        {def ? <GraphView def={def} />
+        {def ? <GraphView def={def} activeNode={activeNode} />
           : <div className="agent-empty">{loading ? 'グラフを取得中…' : 'グラフを取得できません'}</div>}
       </section>
 

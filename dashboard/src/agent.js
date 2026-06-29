@@ -12,7 +12,9 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GRAPHS_PATH = join(__dirname, 'agent-graphs.json');
 // agent の data/ をマウントした場所 (compose で ../agent/data:/agent-data:ro)
-const RUNS_PATH = join(process.env.AGENT_DATA_DIR || '/agent-data', 'runs.jsonl');
+const AGENT_DATA = process.env.AGENT_DATA_DIR || '/agent-data';
+const RUNS_PATH = join(AGENT_DATA, 'runs.jsonl');
+const STATUS_PATH = join(AGENT_DATA, 'agent_status.json');
 
 let _graphsCache = null;
 
@@ -41,4 +43,15 @@ export async function getRuns(limit = 20) {
     }
   }
   return runs.reverse(); // 新しい順
+}
+
+// 実行中のライブ状態 (#72 段階2)。agent が astream 中に書き出す agent_status.json。
+export async function getStatus() {
+  const idle = { running: false, graph: null, node: null };
+  if (!existsSync(STATUS_PATH)) return idle;
+  try {
+    return JSON.parse(await readFile(STATUS_PATH, 'utf-8'));
+  } catch {
+    return idle;
+  }
 }

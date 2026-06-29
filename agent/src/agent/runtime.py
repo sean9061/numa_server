@@ -16,10 +16,38 @@ from typing import Any, Protocol
 
 from langgraph.types import Command
 
-from . import runlog, seen
+from . import runlog, seen, status
 from .config import settings
 
 log = logging.getLogger("agent.runtime")
+
+
+async def _run_with_status(graph, graph_name: str, payload, config) -> dict[str, Any]:
+    """グラフを astream で実行し、各ノード遷移を data/agent_status.json に書き出して
+    dashboard にライブ可視化させる(#72 段階2)。戻り値は ainvoke と同等の最終状態
+    (interrupt 含む)。
+
+    stream_mode=["updates","values"]: updates でノード名(と __interrupt__)を拾い、
+    values で完全な最終状態を得る。"""
+    started = dt.datetime.now(dt.timezone.utc).isoformat()
+    final: dict[str, Any] = {}
+    interrupt = None
+    status.write(running=True, graph=graph_name, node=None, started=started)
+    try:
+        async for mode, chunk in graph.astream(payload, config, stream_mode=["updates", "values"]):
+            if mode == "updates" and isinstance(chunk, dict):
+                for node in chunk:
+                    if node == "__interrupt__":
+                        interrupt = chunk[node]
+                    elif not node.startswith("__"):
+                        status.write(running=True, graph=graph_name, node=node, started=started)
+            elif mode == "values" and isinstance(chunk, dict):
+                final = chunk
+    finally:
+        status.clear(graph=graph_name)
+    if interrupt is not None:
+        final = {**final, "__interrupt__": interrupt}
+    return final
 
 
 class Notifier(Protocol):
@@ -52,8 +80,9 @@ class AgentRuntime:
         started = dt.datetime.now(dt.timezone.utc)
         mode = "orchestrator" if settings.orchestrator_enabled else "simple"
         log.info("クロール開始 thread=%s trigger=%s mode=%s", thread_id, trigger, mode)
+        graph_name = "orchestrator" if settings.orchestrator_enabled else "task"
         try:
-            result = await self.graph.ainvoke({}, config)
+            result = await _run_with_status(self.graph, graph_name, {}, config)
         except Exception as e:
             log.exception("クロール失敗 thread=%s", thread_id)
             run = runlog.build(started, trigger, "crawl", mode,
@@ -105,7 +134,7 @@ class AgentRuntime:
         started = dt.datetime.now(dt.timezone.utc)
         log.info("返信案クロール開始 thread=%s trigger=%s", thread_id, trigger)
         try:
-            result = await self.draft_graph.ainvoke({}, config)
+            result = await _run_with_status(self.draft_graph, "draft", {}, config)
         except Exception as e:
             log.exception("返信案クロール失敗 thread=%s", thread_id)
             run = runlog.build(started, trigger, "draft", "",

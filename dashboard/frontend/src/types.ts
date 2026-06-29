@@ -178,3 +178,11 @@ export interface AgentRun {
   outcome: string;          // applied | proposed | awaiting_approval | suggested | none | error
   error?: string;
 }
+
+export interface AgentStatus {
+  running: boolean;
+  graph: string | null;     // orchestrator | task | draft | null
+  node: string | null;      // 実行中ノード
+  started?: string | null;
+  updated?: string | null;
+}
