@@ -25,6 +25,12 @@ const IconHome = () => (
     <path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" />
   </svg>
 );
+const IconAgent = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="5" cy="6" r="2.2" /><circle cx="19" cy="6" r="2.2" /><circle cx="12" cy="18" r="2.2" />
+    <path d="M7 6.6 17 6.6M6 8 11 16M18 8 13 16" />
+  </svg>
+);
 
 export function Header() {
   const ws          = useStore(s => s.wsStatus);
@@ -63,6 +69,10 @@ export function Header() {
             className={`panel-btn${activePanel === 'home' ? ' active' : ''}`}
             onClick={() => setPanel('home')} title="Home" aria-label="Home"
           ><IconHome /></button>
+          <button
+            className={`panel-btn${activePanel === 'agent' ? ' active' : ''}`}
+            onClick={() => setPanel('agent')} title="Agent" aria-label="Agent"
+          ><IconAgent /></button>
         </div>
         {activePanel === 'server' && <RangeBar />}
         {activePanel === 'home' && <RangeBar scope="home" />}

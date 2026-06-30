@@ -1,0 +1,44 @@
+{
+  "_comment": "LangGraph グラフ構造 (#72)。agent の compiled graph から機械生成。グラフ変更時は再生成: docker compose exec studio python -c \"import json;from agent.studio import task,orchestrator,draft;print(json.dumps({n:{'nodes':[x for x in g.get_graph().nodes],'edges':[{'source':e.source,'target':e.target,'conditional':bool(getattr(e,'conditional',False))} for e in g.get_graph().edges]} for n,g in [('task',task),('orchestrator',orchestrator),('draft',draft)]},ensure_ascii=False))\"",
+  "task": {
+    "nodes": ["__start__", "crawl", "reconcile", "review", "apply", "__end__"],
+    "edges": [
+      {"source": "__start__", "target": "crawl", "conditional": false},
+      {"source": "crawl", "target": "reconcile", "conditional": false},
+      {"source": "reconcile", "target": "__end__", "conditional": true},
+      {"source": "reconcile", "target": "apply", "conditional": true},
+      {"source": "reconcile", "target": "review", "conditional": true},
+      {"source": "review", "target": "__end__", "conditional": true},
+      {"source": "review", "target": "apply", "conditional": true},
+      {"source": "apply", "target": "__end__", "conditional": false}
+    ]
+  },
+  "orchestrator": {
+    "nodes": ["__start__", "gather", "plan", "execute", "integrate", "reconcile", "review", "apply", "__end__"],
+    "edges": [
+      {"source": "__start__", "target": "gather", "conditional": false},
+      {"source": "gather", "target": "plan", "conditional": false},
+      {"source": "plan", "target": "execute", "conditional": true},
+      {"source": "plan", "target": "integrate", "conditional": true},
+      {"source": "plan", "target": "reconcile", "conditional": true},
+      {"source": "execute", "target": "integrate", "conditional": false},
+      {"source": "integrate", "target": "__end__", "conditional": true},
+      {"source": "integrate", "target": "apply", "conditional": true},
+      {"source": "integrate", "target": "review", "conditional": true},
+      {"source": "reconcile", "target": "__end__", "conditional": true},
+      {"source": "reconcile", "target": "apply", "conditional": true},
+      {"source": "reconcile", "target": "review", "conditional": true},
+      {"source": "review", "target": "__end__", "conditional": true},
+      {"source": "review", "target": "apply", "conditional": true},
+      {"source": "apply", "target": "__end__", "conditional": false}
+    ]
+  },
+  "draft": {
+    "nodes": ["__start__", "gather", "compose", "__end__"],
+    "edges": [
+      {"source": "__start__", "target": "gather", "conditional": false},
+      {"source": "gather", "target": "compose", "conditional": false},
+      {"source": "compose", "target": "__end__", "conditional": false}
+    ]
+  }
+}
